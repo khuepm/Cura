@@ -15,8 +15,8 @@ This implementation plan breaks down the Cura photo management application into 
   - Set up testing frameworks: proptest for Rust, fast-check for TypeScript
   - _Requirements: 1.1, 6.3, 12.5_
 
-- [-] 2. Implement image scanning and discovery (Rust backend)
-  - [ ] 2.1 Create image scanner module with recursive directory traversal
+- [x] 2. Implement image scanning and discovery (Rust backend)
+  - [x] 2.1 Create image scanner module with recursive directory traversal
     - Implement `scan_folder` Tauri command that accepts a folder path
     - Use walkdir crate to recursively traverse directory tree
     - Filter files by image extensions: .jpg, .jpeg, .png, .heic, .raw, .cr2, .nef
@@ -25,28 +25,28 @@ This implementation plan breaks down the Cura photo management application into 
     - Use buffered channel to emit progress events in batches (every 100 files) to avoid IPC congestion
     - _Requirements: 1.2, 1.3, 1.4, 1.5_
   
-  - [ ] 2.2 Write property test for recursive image discovery
+  - [x] 2.2 Write property test for recursive image discovery
     - **Property 1: Recursive Image Discovery**
     - **Validates: Requirements 1.2, 1.5**
     - Generate random directory trees with images at various depths
     - Verify all image files are discovered regardless of nesting level
     - Verify return structure contains both original paths and thumbnail paths
   
-  - [ ] 2.3 Write property test for format support
+  - [x] 2.3 Write property test for format support
     - **Property 2: Format Support Completeness**
     - **Validates: Requirements 1.4**
     - Test with sample files in JPEG, PNG, HEIC, and RAW formats
     - Verify each format is successfully processed without errors
   
-  - [ ] 2.4 Write property test for error isolation
+  - [x] 2.4 Write property test for error isolation
     - **Property 3: Error Isolation**
     - **Validates: Requirements 1.6, 11.3**
     - Create test batches with mix of valid and unreadable files
     - Verify processing continues for valid files when errors occur
     - Verify errors are logged and included in result
 
-- [~] 3. Implement metadata extraction (Rust backend)
-  - [ ] 3.1 Create metadata extractor module
+- [-] 3. Implement metadata extraction (Rust backend)
+  - [x] 3.1 Create metadata extractor module
     - Implement `extract_metadata` Tauri command that accepts image path
     - Use kamadak-exif crate to parse EXIF data
     - Extract capture date, camera make/model, GPS coordinates, dimensions
@@ -56,13 +56,13 @@ This implementation plan breaks down the Cura photo management application into 
     - Return ImageMetadata struct with all extracted fields
     - _Requirements: 2.1, 2.2, 2.4_
   
-  - [ ] 3.2 Write property test for metadata field completeness
+  - [x] 3.2 Write property test for metadata field completeness
     - **Property 4: Metadata Field Completeness**
     - **Validates: Requirements 2.1**
     - Generate images with various EXIF data combinations
     - Verify all expected fields are present in extracted metadata
   
-  - [ ] 3.3 Write property test for GPS coordinate format
+  - [-] 3.3 Write property test for GPS coordinate format
     - **Property 6: GPS Coordinate Format**
     - **Validates: Requirements 2.4**
     - Test with images containing GPS EXIF data

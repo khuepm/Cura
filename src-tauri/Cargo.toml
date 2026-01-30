@@ -41,3 +41,4 @@ sha2 = "0.10"
 
 [dev-dependencies]
 proptest = "1.5"
+tempfile = "3.13"
