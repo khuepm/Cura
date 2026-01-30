@@ -42,3 +42,4 @@ sha2 = "0.10"
 [dev-dependencies]
 proptest = "1.5"
 tempfile = "3.13"
+uuid = { version = "1.11", features = ["v4"] }

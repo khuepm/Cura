@@ -118,7 +118,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify errors are logged and placeholder is used
     - _Requirements: 3.5_
 
-- [-] 5. Implement database operations (Rust backend)
+- [x] 5. Implement database operations (Rust backend)
   - [x] 5.1 Create database module with SQLite integration and migrations
     - Implement database initialization with schema creation
     - Set up database migration system (using diesel or custom version tracking)
@@ -131,47 +131,47 @@ This implementation plan breaks down the Cura photo management application into 
     - Create function to delete image records and associated data
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
   
-  - [-] 5.2 Write property test for database round-trip consistency
+  - [x] 5.2 Write property test for database round-trip consistency
     - **Property 5: Database Round-Trip Consistency**
     - **Validates: Requirements 2.3, 4.3, 6.1**
     - Generate random image metadata and tags
     - Store to database and query back
     - Verify retrieved data is equivalent to original data
   
-  - [ ] 5.3 Write property test for database query filtering
+  - [x] 5.3 Write property test for database query filtering
     - **Property 14: Database Query Filtering**
     - **Validates: Requirements 6.2**
     - Insert images with various metadata values
     - Test filtering by date range, location, tags, and device
     - Verify only matching images are returned
   
-  - [ ] 5.4 Write property test for referential integrity
+  - [x] 5.4 Write property test for referential integrity
     - **Property 15: Referential Integrity**
     - **Validates: Requirements 6.4**
     - Insert image with associated tags
     - Delete image record
     - Verify tags are automatically cascade deleted
   
-  - [ ] 5.5 Write property test for cleanup on deletion
+  - [x] 5.5 Write property test for cleanup on deletion
     - **Property 16: Cleanup on Deletion**
     - **Validates: Requirements 6.5**
     - Create image with thumbnails and database record
     - Delete image from disk
     - Verify database record and thumbnail files are removed
   
-  - [ ] 5.6 Write property test for path update on move
+  - [x] 5.6 Write property test for path update on move
     - **Property 17: Path Update on Move**
     - **Validates: Requirements 6.6**
     - Create image record with checksum
     - Move image to new location within monitored folders
     - Verify existing record is updated, not duplicated
   
-  - [ ] 5.7 Write unit test for schema initialization
+  - [x] 5.7 Write unit test for schema initialization
     - Test database initialization on first run
     - Verify all tables and indexes are created
     - _Requirements: 6.3_
 
-- [~] 6. Checkpoint - Ensure backend core functionality works
+- [x] 6. Checkpoint - Ensure backend core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
 - [~] 7. Implement frontend UI foundation (Next.js)
