@@ -3,6 +3,7 @@
 import React from "react";
 import { FixedSizeGrid as Grid } from "react-window";
 import { useRouter } from "next/navigation";
+import { useAppState } from "@/lib/store/AppContext";
 
 export interface PhotoGridItem {
   id: number;
@@ -13,7 +14,7 @@ export interface PhotoGridItem {
 }
 
 interface PhotoGridProps {
-  photos: PhotoGridItem[];
+  photos?: PhotoGridItem[];
   isLoading?: boolean;
 }
 
@@ -21,10 +22,29 @@ const COLUMN_WIDTH = 250;
 const ROW_HEIGHT = 250;
 const GAP = 16;
 
-export default function PhotoGrid({ photos, isLoading = false }: PhotoGridProps) {
+export default function PhotoGrid({ photos: propPhotos, isLoading = false }: PhotoGridProps) {
   const router = useRouter();
+  const { images, scanning } = useAppState();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 0, height: 0 });
+
+  // Use photos from props if provided, otherwise use photos from state
+  const photos = React.useMemo(() => {
+    if (propPhotos) {
+      return propPhotos;
+    }
+
+    // Convert state images to PhotoGridItem format
+    return Array.from(images.items.values()).map((image) => ({
+      id: image.id,
+      thumbnailSmall: image.thumbnailSmall,
+      captureDate: image.metadata.captureDate?.toISOString(),
+      width: image.metadata.dimensions.width,
+      height: image.metadata.dimensions.height,
+    }));
+  }, [propPhotos, images.items]);
+
+  const actualIsLoading = isLoading || scanning.isScanning;
 
   React.useEffect(() => {
     if (!containerRef.current) return;
@@ -86,7 +106,7 @@ export default function PhotoGrid({ photos, isLoading = false }: PhotoGridProps)
     );
   };
 
-  if (isLoading) {
+  if (actualIsLoading) {
     return <PhotoGridSkeleton />;
   }
 

@@ -21,6 +21,20 @@ export default function Sidebar() {
           Library
         </div>
 
+        {/* Import Photos */}
+        <Link
+          href="/import"
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive("/import")
+            ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary"
+            : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+        >
+          <span className={`material-symbols-outlined text-[22px] ${isActive("/import") ? "fill-1" : ""}`}>
+            upload_file
+          </span>
+          <span className="text-sm font-medium">Import Photos</span>
+        </Link>
+
         {/* Photo Grid View */}
         <Link
           href="/gallery/grid"

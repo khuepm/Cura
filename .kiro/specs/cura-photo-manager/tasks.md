@@ -174,21 +174,21 @@ This implementation plan breaks down the Cura photo management application into 
 - [x] 6. Checkpoint - Ensure backend core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 7. Implement frontend UI foundation (Next.js)
+- [x] 7. Implement frontend UI foundation (Next.js)
   - [x] 7.1 Create main application layout and routing
     - Set up Next.js app router with pages for grid view, detail view, and settings
     - Create navigation components for folder selection, search, and settings
     - Implement responsive layout with Tailwind CSS
     - _Requirements: 9.1, 9.5_
   
-  - [-] 7.2 Create photo grid view component
+  - [x] 7.2 Create photo grid view component
     - Implement virtual scrolling using react-window for performance
     - Display thumbnail images in responsive grid layout
     - Show skeleton placeholders while thumbnails are loading
     - Handle click events to navigate to detail view
     - _Requirements: 9.1, 9.3, 9.4_
   
-  - [ ] 7.3 Create photo detail view component
+  - [x] 7.3 Create photo detail view component
     - Display medium thumbnail (600px) initially
     - Implement backend Tauri command to convert HEIC/RAW to JPEG for full-resolution viewing
     - Lazy load converted full-resolution image on demand (or use medium thumbnail for zoom)
@@ -197,25 +197,25 @@ This implementation plan breaks down the Cura photo management application into 
     - Implement map view for images with GPS coordinates
     - _Requirements: 9.2_
   
-  - [ ] 7.4 Write unit tests for UI components
+  - [x] 7.4 Write unit tests for UI components
     - Test grid view rendering with mock data
     - Test detail view navigation and data display
     - Test skeleton loader display during loading states
     - _Requirements: 9.1, 9.2, 9.4_
 
-- [~] 8. Implement state management and Tauri IPC integration (Next.js)
-  - [ ] 8.1 Set up state management for application state
+- [-] 8. Implement state management and Tauri IPC integration (Next.js)
+  - [x] 8.1 Set up state management for application state
     - Create state store for images, search, AI processing, sync, and settings
     - Implement actions for updating state based on user interactions
     - _Requirements: All_
   
-  - [ ] 8.2 Integrate Tauri commands for backend communication
+  - [x] 8.2 Integrate Tauri commands for backend communication
     - Create TypeScript wrappers for Tauri commands (scan_folder, extract_metadata, generate_thumbnails)
     - Implement event listeners for progress updates from backend
     - Handle errors from backend and display user-friendly messages
     - _Requirements: 1.1, 2.1, 3.1, 11.2_
   
-  - [ ] 8.3 Implement folder selection and image import flow
+  - [-] 8.3 Implement folder selection and image import flow
     - Use Tauri dialog API to select folder
     - Call scan_folder command and display progress
     - Update state with discovered images

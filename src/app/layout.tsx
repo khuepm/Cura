@@ -3,6 +3,7 @@ import { Inter, Noto_Sans } from "next/font/google"; // Import fonts
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
+import { AppProvider } from "@/lib/store/AppContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const notoSans = Noto_Sans({
@@ -33,13 +34,15 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${notoSans.variable} font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-white h-screen overflow-hidden flex flex-col`}
       >
-        <Header />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-4 md:p-8 pb-24">
-            {children}
-          </main>
-        </div>
+        <AppProvider>
+          <Header />
+          <div className="flex flex-1 overflow-hidden">
+            <Sidebar />
+            <main className="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-4 md:p-8 pb-24">
+              {children}
+            </main>
+          </div>
+        </AppProvider>
       </body>
     </html>
   );
