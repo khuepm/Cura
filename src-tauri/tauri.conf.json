@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "gallery-app",
+  "productName": "cura-photo-manager",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.cura.photomanager",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "Image Manager",
-        "width": 800,
-        "height": 600,
+        "title": "Cura Photo Manager",
+        "width": 1200,
+        "height": 800,
         "resizable": true,
         "fullscreen": false
       }
@@ -33,5 +33,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "dialog": {
+      "all": true,
+      "open": true
+    },
+    "fs": {
+      "scope": ["$APPDATA/**", "$HOME/**"]
+    }
   }
 }
