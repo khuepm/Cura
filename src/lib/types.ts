@@ -75,3 +75,24 @@ export interface SyncProgress {
   total: number;
   currentFile: string;
 }
+
+// AI Classification types
+export interface ClassificationRequest {
+  thumbnailPath: string;
+  imageId: number;
+  modelType: 'clip' | 'mobilenet';
+  priority?: 'high' | 'low';
+}
+
+export interface ClassificationResult {
+  imageId: number;
+  tags: Tag[];
+  error?: string;
+}
+
+export interface AIProcessingState {
+  isProcessing: boolean;
+  queueSize: number;
+  processedCount: number;
+  modelLoaded: boolean;
+}

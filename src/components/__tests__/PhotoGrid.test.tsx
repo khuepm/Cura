@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PhotoGrid, { PhotoGridItem } from "../PhotoGrid";
+import { AppProvider } from "@/lib/store/AppContext";
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -9,6 +10,11 @@ vi.mock("next/navigation", () => ({
     back: vi.fn(),
   }),
 }));
+
+// Helper to render with AppProvider
+const renderWithProvider = (ui: React.ReactElement) => {
+  return render(<AppProvider>{ui}</AppProvider>);
+};
 
 describe("PhotoGrid", () => {
   const mockPhotos: PhotoGridItem[] = [
@@ -28,7 +34,7 @@ describe("PhotoGrid", () => {
   ];
 
   it("renders empty state when no photos provided", () => {
-    render(<PhotoGrid photos={[]} isLoading={false} />);
+    renderWithProvider(<PhotoGrid photos={[]} isLoading={false} />);
     expect(screen.getByText("No photos yet")).toBeInTheDocument();
     expect(
       screen.getByText("Select a folder to start importing your photos")
@@ -36,13 +42,13 @@ describe("PhotoGrid", () => {
   });
 
   it("renders skeleton loader when loading", () => {
-    render(<PhotoGrid photos={[]} isLoading={true} />);
+    renderWithProvider(<PhotoGrid photos={[]} isLoading={true} />);
     const skeletons = document.querySelectorAll(".animate-pulse");
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it("renders photos when provided", () => {
-    const { container } = render(<PhotoGrid photos={mockPhotos} isLoading={false} />);
+    const { container } = renderWithProvider(<PhotoGrid photos={mockPhotos} isLoading={false} />);
     // Component should render without errors
     expect(container.firstChild).toBeTruthy();
   });

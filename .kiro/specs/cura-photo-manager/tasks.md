@@ -203,7 +203,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Test skeleton loader display during loading states
     - _Requirements: 9.1, 9.2, 9.4_
 
-- [-] 8. Implement state management and Tauri IPC integration (Next.js)
+- [x] 8. Implement state management and Tauri IPC integration (Next.js)
   - [x] 8.1 Set up state management for application state
     - Create state store for images, search, AI processing, sync, and settings
     - Implement actions for updating state based on user interactions
@@ -215,15 +215,15 @@ This implementation plan breaks down the Cura photo management application into 
     - Handle errors from backend and display user-friendly messages
     - _Requirements: 1.1, 2.1, 3.1, 11.2_
   
-  - [-] 8.3 Implement folder selection and image import flow
+  - [x] 8.3 Implement folder selection and image import flow
     - Use Tauri dialog API to select folder
     - Call scan_folder command and display progress
     - Update state with discovered images
     - Display grid view with thumbnails
     - _Requirements: 1.1, 1.2, 1.5_
 
-- [~] 9. Implement AI classification (Next.js frontend)
-  - [ ] 9.1 Create web worker for AI inference
+- [x] 9. Implement AI classification (Next.js frontend)
+  - [x] 9.1 Create web worker for AI inference
     - Set up web worker to run Transformers.js models
     - Load Xenova/clip-vit-base-patch32 or Xenova/mobilenetv4_conv_small model
     - Implement message handling for classification requests
@@ -231,7 +231,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Return classification results with tags and confidence scores
     - _Requirements: 4.1, 4.2, 4.4, 4.5_
   
-  - [ ] 9.2 Integrate AI classifier with image processing pipeline
+  - [x] 9.2 Integrate AI classifier with image processing pipeline
     - Send thumbnails to web worker for classification
     - Implement priority queue: prioritize images in current viewport over off-screen images
     - Process images in background queue with low priority (max 2 concurrent)
@@ -240,59 +240,59 @@ This implementation plan breaks down the Cura photo management application into 
     - Display processing progress (queue size, processed count)
     - _Requirements: 4.2, 4.3, 4.5_
   
-  - [ ] 9.3 Write property test for classification output structure
+  - [x] 9.3 Write property test for classification output structure
     - **Property 11: Classification Output Structure**
     - **Validates: Requirements 4.2**
     - Generate random test images
     - Verify classification results contain at least one tag with label and confidence
   
-  - [ ] 9.4 Write unit test for web worker isolation
+  - [x] 9.4 Write unit test for web worker isolation
     - Test that inference runs in worker thread without blocking UI
     - Test queue management limits concurrent operations
     - _Requirements: 4.4, 4.5_
 
-- [~] 10. Implement search functionality (Next.js frontend)
-  - [ ] 10.1 Create search interface component
+- [x] 10. Implement search functionality (Next.js frontend)
+  - [x] 10.1 Create search interface component
     - Implement text input with debounced search (300ms delay)
     - Add filter chips for tags, date ranges, locations
     - Add toggle for semantic search vs tag search (when CLIP enabled)
     - Display result count and search time
     - _Requirements: 5.1, 5.2, 5.3_
   
-  - [ ] 10.2 Implement tag-based search
+  - [x] 10.2 Implement tag-based search
     - Query database for images matching search criteria
     - Support filtering by tags, date range, location, and device
     - Display results in grid view
     - _Requirements: 6.2_
   
-  - [ ] 10.3 Implement semantic search with CLIP
+  - [x] 10.3 Implement semantic search with CLIP
     - Compute query embedding in web worker
     - Compare against stored image embeddings in database
     - Rank results by semantic similarity score
     - Display ranked results in grid view
     - _Requirements: 4.6, 5.1, 5.2_
   
-  - [ ] 10.4 Write property test for semantic search
+  - [x] 10.4 Write property test for semantic search
     - **Property 12: Semantic Search with CLIP**
     - **Validates: Requirements 4.6**
     - Test with natural language queries
     - Verify system returns ranked list of images
   
-  - [ ] 10.5 Write property test for search result ordering
+  - [x] 10.5 Write property test for search result ordering
     - **Property 13: Search Result Ordering**
     - **Validates: Requirements 5.2**
     - Generate search results with various relevance scores
     - Verify results are ordered by score in descending order
   
-  - [ ] 10.6 Write unit test for empty search results
+  - [x] 10.6 Write unit test for empty search results
     - Test with query that matches no images
     - Verify "no results found" message is displayed
     - _Requirements: 5.3_
 
-- [~] 11. Checkpoint - Ensure frontend core functionality works
+- [x] 11. Checkpoint - Ensure frontend core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Implement Google Drive authentication (Rust backend)
+- [~] 12. Implement Google Drive authentication (Rust backend)
   - [ ] 12.1 Create OAuth 2.0 authentication module
     - Implement `authenticate_google_drive` Tauri command
     - Use oauth2 crate to handle OAuth 2.0 flow
@@ -332,7 +332,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify error message is displayed and retry is allowed
     - _Requirements: 7.5_
 
-- [ ] 13. Implement Google Drive synchronization (Rust backend)
+- [~] 13. Implement Google Drive synchronization (Rust backend)
   - [ ] 13.1 Create cloud sync module
     - Implement `sync_to_drive` Tauri command that accepts list of image IDs
     - Query database for images to sync
@@ -367,7 +367,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify retry attempts with exponential backoff
     - _Requirements: 8.4_
 
-- [ ] 14. Implement error handling and logging (Rust backend)
+- [~] 14. Implement error handling and logging (Rust backend)
   - [ ] 14.1 Create logging module
     - Set up logging framework (use tracing or log crate)
     - Configure log output to rotating file in application data directory
@@ -399,7 +399,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify error messages are user-friendly without technical details
     - _Requirements: 11.2_
 
-- [ ] 15. Implement settings and configuration (Next.js frontend + Rust backend)
+- [~] 15. Implement settings and configuration (Next.js frontend + Rust backend)
   - [ ] 15.1 Create settings UI component
     - Implement settings page with form inputs
     - Add settings for thumbnail cache location, AI model selection, sync preferences

@@ -4,28 +4,6 @@ import { useTauriCommands } from './useTauriCommands';
 import { listenToScanProgress } from '../tauri/events';
 import type { ImageRecord } from '../types';
 
-// Tauri dialog API
-async function openFolderDialog(): Promise<string | null> {
-  try {
-    // Use Tauri's dialog API
-    const { open } = await import('@tauri-apps/api/dialog');
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: 'Select a folder to scan for images',
-    });
-
-    if (selected && typeof selected === 'string') {
-      return selected;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Failed to open folder dialog:', error);
-    return null;
-  }
-}
-
 /**
  * Hook for folder selection and image import flow
  */
@@ -62,20 +40,14 @@ export function useFolderImport() {
 
   /**
    * Open folder selection dialog
+   * For now, we'll use a simple prompt. In production, this would use Tauri's dialog plugin.
    */
   const selectFolder = useCallback(async (): Promise<string | null> => {
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'Select a folder to scan for images',
-      });
-
-      if (selected && typeof selected === 'string') {
-        return selected;
-      }
-
-      return null;
+      // TODO: Replace with Tauri dialog plugin when npm package is installed
+      // For now, use a simple prompt for testing
+      const folderPath = prompt('Enter folder path to scan:');
+      return folderPath;
     } catch (error) {
       setError('Failed to open folder selection dialog');
       console.error('Folder selection error:', error);

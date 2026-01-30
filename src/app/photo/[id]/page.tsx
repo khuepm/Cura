@@ -4,6 +4,9 @@ import { useParams, useRouter } from "next/navigation";
 import PhotoDetail, { PhotoDetailData } from "@/components/PhotoDetail";
 import { useState, useEffect } from "react";
 
+// Allow dynamic params at runtime
+export const dynamicParams = true;
+
 export default function PhotoDetailPage() {
   const params = useParams();
   const router = useRouter();
