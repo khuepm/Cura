@@ -1,3 +1,4 @@
+mod auth;
 mod database;
 mod metadata;
 mod scanner;
@@ -191,6 +192,76 @@ fn get_all_embeddings(
     Ok(embeddings)
 }
 
+/// Tauri command to authenticate with Google Drive
+#[tauri::command]
+async fn authenticate_google_drive(
+    app_handle: tauri::AppHandle,
+) -> Result<auth::AuthStatus, String> {
+    // For now, use placeholder credentials - in production, these should be configured
+    let client_id = std::env::var("GOOGLE_CLIENT_ID")
+        .unwrap_or_else(|_| "placeholder_client_id".to_string());
+    let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
+        .unwrap_or_else(|_| "placeholder_client_secret".to_string());
+
+    let auth = auth::GoogleDriveAuth::new(client_id, client_secret);
+
+    // Start OAuth flow and get authorization URL
+    let auth_url = auth.start_auth_flow()?;
+
+    // Open browser window for user authorization
+    if let Err(e) = open::that(&auth_url) {
+        return Ok(auth::AuthStatus {
+            success: false,
+            message: format!("Failed to open browser: {}", e),
+        });
+    }
+
+    // Store auth manager in app state for callback handling
+    app_handle.manage(auth);
+
+    Ok(auth::AuthStatus {
+        success: true,
+        message: format!("Authorization URL opened: {}", auth_url),
+    })
+}
+
+/// Tauri command to handle OAuth callback
+#[tauri::command]
+async fn handle_oauth_callback(
+    code: String,
+    state: String,
+    app_handle: tauri::AppHandle,
+) -> Result<auth::AuthStatus, String> {
+    let auth = app_handle.state::<auth::GoogleDriveAuth>();
+
+    match auth.handle_callback(code, state).await {
+        Ok(_) => Ok(auth::AuthStatus {
+            success: true,
+            message: "Authentication successful".to_string(),
+        }),
+        Err(e) => Ok(auth::AuthStatus {
+            success: false,
+            message: format!("Authentication failed: {}", e),
+        }),
+    }
+}
+
+/// Tauri command to check if user is authenticated
+#[tauri::command]
+fn is_authenticated(_app_handle: tauri::AppHandle) -> Result<bool, String> {
+    let client_id = std::env::var("GOOGLE_CLIENT_ID")
+        .unwrap_or_else(|_| "placeholder_client_id".to_string());
+    let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
+        .unwrap_or_else(|_| "placeholder_client_secret".to_string());
+
+    let auth = auth::GoogleDriveAuth::new(client_id, client_secret);
+
+    match auth.get_tokens() {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -205,7 +276,10 @@ pub fn run() {
       get_image_tags,
       get_image_by_id,
       save_embedding,
-      get_all_embeddings
+      get_all_embeddings,
+      authenticate_google_drive,
+      handle_oauth_callback,
+      is_authenticated
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

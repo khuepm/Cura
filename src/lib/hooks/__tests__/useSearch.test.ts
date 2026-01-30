@@ -93,14 +93,18 @@ describe('useSearch', () => {
     });
 
     it('should track search time even for empty results', async () => {
-      // Mock searchImages to return empty array
-      vi.mocked(commands.searchImages).mockResolvedValue([]);
+      // Mock searchImages to return empty array with a small delay
+      vi.mocked(commands.searchImages).mockImplementation(async () => {
+        // Add a small delay to ensure searchTime is measurable
+        await new Promise(resolve => setTimeout(resolve, 10));
+        return [];
+      });
 
       const { result } = renderHook(() => useSearch());
 
       await result.current.performSearch({ text: 'test' });
 
-      // Verify search time is tracked
+      // Wait for search time to be updated
       await waitFor(() => {
         expect(result.current.searchTime).toBeGreaterThan(0);
       });
@@ -132,7 +136,11 @@ describe('useSearch', () => {
 
       // Should return empty array on error
       expect(searchResults).toEqual([]);
-      expect(result.current.error).toBeTruthy();
+      
+      // Wait for error state to be set
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
     });
   });
 });

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 059ebe06d4abce9c3f3b79a0817f182830b5d64eade7159690d762f45f036104 # shrinks to token_data = TokenData { access_token: "00A0a0a0AaAA0aAA0A00", refresh_token: None, expires_at: 1000000000 }

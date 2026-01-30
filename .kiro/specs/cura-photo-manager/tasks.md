@@ -292,8 +292,8 @@ This implementation plan breaks down the Cura photo management application into 
 - [x] 11. Checkpoint - Ensure frontend core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [~] 12. Implement Google Drive authentication (Rust backend)
-  - [ ] 12.1 Create OAuth 2.0 authentication module
+- [-] 12. Implement Google Drive authentication (Rust backend)
+  - [x] 12.1 Create OAuth 2.0 authentication module
     - Implement `authenticate_google_drive` Tauri command
     - Use oauth2 crate to handle OAuth 2.0 flow
     - Open browser window for user authorization
@@ -303,20 +303,20 @@ This implementation plan breaks down the Cura photo management application into 
     - Return authentication status (success/failure)
     - _Requirements: 7.1, 7.2, 7.3_
   
-  - [ ] 12.2 Implement token refresh mechanism
+  - [x] 12.2 Implement token refresh mechanism
     - Create function to check if access_token is expired
     - Automatically refresh access_token using refresh_token when expired
     - Update stored tokens in keychain
     - _Requirements: 7.4_
   
-  - [ ] 12.3 Write property test for token persistence
+  - [x] 12.3 Write property test for token persistence
     - **Property 18: Token Persistence**
     - **Validates: Requirements 7.2**
     - Simulate successful authentication
     - Store tokens in keychain
     - Verify tokens are retrievable in subsequent sessions
   
-  - [ ] 12.4 Write property test for automatic token refresh
+  - [-] 12.4 Write property test for automatic token refresh
     - **Property 19: Automatic Token Refresh**
     - **Validates: Requirements 7.4**
     - Simulate expired access_token

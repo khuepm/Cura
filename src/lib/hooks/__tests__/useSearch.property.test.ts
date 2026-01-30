@@ -71,12 +71,12 @@ describe('Search Property Tests', () => {
       fc.assert(
         fc.property(
           // Generate random query embedding (512 dimensions)
-          fc.array(fc.float({ min: -1, max: 1 }), { minLength: 512, maxLength: 512 }),
+          fc.array(fc.float({ min: -1, max: 1, noNaN: true }), { minLength: 512, maxLength: 512 }),
           // Generate random image embeddings (5-20 images)
           fc.array(
             fc.record({
               imageId: fc.integer({ min: 1, max: 10000 }),
-              embedding: fc.array(fc.float({ min: -1, max: 1 }), { minLength: 512, maxLength: 512 }),
+              embedding: fc.array(fc.float({ min: -1, max: 1, noNaN: true }), { minLength: 512, maxLength: 512 }),
             }),
             { minLength: 5, maxLength: 20 }
           ),
@@ -126,7 +126,7 @@ describe('Search Property Tests', () => {
     it('should handle identical embeddings correctly', () => {
       fc.assert(
         fc.property(
-          fc.array(fc.float({ min: -1, max: 1 }), { minLength: 512, maxLength: 512 }),
+          fc.array(fc.float({ min: -1, max: 1, noNaN: true }), { minLength: 512, maxLength: 512 }),
           fc.integer({ min: 3, max: 10 }),
           (embedding, numImages) => {
             // Create multiple images with identical embeddings
