@@ -12,8 +12,8 @@ const notoSans = Noto_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Image Manager",
-  description: "Advanced Image Management Dashboard",
+  title: "Cura Photo Manager",
+  description: "AI-powered photo management with cloud sync",
 };
 
 export default function RootLayout({

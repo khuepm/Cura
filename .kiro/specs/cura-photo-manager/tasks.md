@@ -174,14 +174,14 @@ This implementation plan breaks down the Cura photo management application into 
 - [x] 6. Checkpoint - Ensure backend core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [~] 7. Implement frontend UI foundation (Next.js)
-  - [ ] 7.1 Create main application layout and routing
+- [-] 7. Implement frontend UI foundation (Next.js)
+  - [x] 7.1 Create main application layout and routing
     - Set up Next.js app router with pages for grid view, detail view, and settings
     - Create navigation components for folder selection, search, and settings
     - Implement responsive layout with Tailwind CSS
     - _Requirements: 9.1, 9.5_
   
-  - [ ] 7.2 Create photo grid view component
+  - [-] 7.2 Create photo grid view component
     - Implement virtual scrolling using react-window for performance
     - Display thumbnail images in responsive grid layout
     - Show skeleton placeholders while thumbnails are loading
