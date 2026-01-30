@@ -1,0 +1,12 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc eef05f47763a229914ea726dcfc91c3d6d468e0c8350d5e285a90b23be9c0757 # shrinks to width = 1212, height = 203
+cc 27fe439dcd6a4a8031b84ce3e89d043ba73088bf7dababa97661bf9ed713cb78 # shrinks to width = 2685, height = 772
+cc 75c551573fd598d478a4176f1c2169990b3f1686723a7b3d2679d9116b11e4e8 # shrinks to width = 1016, height = 205
+cc 5eba29228f8635c387ad8fcbc2c0aa863c3e63e0be5ff0a5285ce1fb35fa3d04 # shrinks to width = 200, height = 200
+cc a247633696343d07854c7a5e34191bbdb6c3ad34a54a5b402a828d48fc4a9332 # shrinks to width = 2112, height = 200
+cc 5a6fa69901367cc5cf103b4e62278747c71d49e3a64c5750d0f553b277673556 # shrinks to width = 1898, height = 218

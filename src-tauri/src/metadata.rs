@@ -432,15 +432,9 @@ mod property_tests {
             // the function handles various inputs gracefully and always returns
             // the required fields (path, file_size, file_modified, capture_date)
         }
-    }
-}
 
-    // Feature: cura-photo-manager, Property 6: GPS Coordinate Format
-    // Validates: Requirements 2.4
-    
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(100))]
-
+        // Feature: cura-photo-manager, Property 6: GPS Coordinate Format
+        // Validates: Requirements 2.4
         #[test]
         fn property_gps_coordinate_format(
             lat_degrees in 0..90u32,
@@ -488,3 +482,4 @@ mod property_tests {
             // so we're verifying the conversion formula is correct.
         }
     }
+}

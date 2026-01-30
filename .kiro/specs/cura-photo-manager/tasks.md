@@ -45,7 +45,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify processing continues for valid files when errors occur
     - Verify errors are logged and included in result
 
-- [-] 3. Implement metadata extraction (Rust backend)
+- [x] 3. Implement metadata extraction (Rust backend)
   - [x] 3.1 Create metadata extractor module
     - Implement `extract_metadata` Tauri command that accepts image path
     - Use kamadak-exif crate to parse EXIF data
@@ -62,20 +62,20 @@ This implementation plan breaks down the Cura photo management application into 
     - Generate images with various EXIF data combinations
     - Verify all expected fields are present in extracted metadata
   
-  - [-] 3.3 Write property test for GPS coordinate format
+  - [x] 3.3 Write property test for GPS coordinate format
     - **Property 6: GPS Coordinate Format**
     - **Validates: Requirements 2.4**
     - Test with images containing GPS EXIF data
     - Verify coordinates are in decimal degrees format
     - Verify latitude is in range [-90, 90] and longitude in [-180, 180]
   
-  - [ ] 3.4 Write unit test for fallback to file system timestamps
+  - [x] 3.4 Write unit test for fallback to file system timestamps
     - Test images without EXIF date data
     - Verify file system modified time is used as fallback
     - _Requirements: 2.2_
 
-- [~] 4. Implement thumbnail generation (Rust backend)
-  - [ ] 4.1 Create thumbnail generator module
+- [x] 4. Implement thumbnail generation (Rust backend)
+  - [x] 4.1 Create thumbnail generator module
     - Implement `generate_thumbnails` Tauri command that accepts image path
     - Use image crate for decoding and resizing
     - For HEIC files: use libheif-rs to decode, convert to JPEG
@@ -88,38 +88,38 @@ This implementation plan breaks down the Cura photo management application into 
     - Return ThumbnailPaths struct with paths to both thumbnail sizes
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.6_
   
-  - [ ] 4.2 Write property test for dual thumbnail generation
+  - [x] 4.2 Write property test for dual thumbnail generation
     - **Property 7: Dual Thumbnail Generation**
     - **Validates: Requirements 3.1**
     - Generate random test images
     - Verify exactly two thumbnails are created with correct dimensions (150px and 600px width)
     - Verify aspect ratio is maintained
   
-  - [ ] 4.3 Write property test for format conversion
+  - [x] 4.3 Write property test for format conversion
     - **Property 8: Format Conversion for Compatibility**
     - **Validates: Requirements 3.2**
     - Test with HEIC and RAW format inputs
     - Verify output thumbnails are in JPEG format
   
-  - [ ] 4.4 Write property test for thumbnail generation idempotence
+  - [x] 4.4 Write property test for thumbnail generation idempotence
     - **Property 9: Thumbnail Generation Idempotence**
     - **Validates: Requirements 3.4, 10.3**
     - Generate thumbnails for an image twice without modifying source
     - Verify second generation skips regeneration and returns existing paths
   
-  - [ ] 4.5 Write property test for orientation preservation
+  - [x] 4.5 Write property test for orientation preservation
     - **Property 10: Orientation Preservation**
     - **Validates: Requirements 3.6**
     - Test with images having different EXIF orientation tags (1-8)
     - Verify thumbnails are rotated correctly according to orientation value
   
-  - [ ] 4.6 Write unit test for thumbnail generation error handling
+  - [x] 4.6 Write unit test for thumbnail generation error handling
     - Test with corrupt image files
     - Verify errors are logged and placeholder is used
     - _Requirements: 3.5_
 
-- [~] 5. Implement database operations (Rust backend)
-  - [ ] 5.1 Create database module with SQLite integration and migrations
+- [-] 5. Implement database operations (Rust backend)
+  - [x] 5.1 Create database module with SQLite integration and migrations
     - Implement database initialization with schema creation
     - Set up database migration system (using diesel or custom version tracking)
     - Create migration scripts for schema versioning
@@ -131,7 +131,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Create function to delete image records and associated data
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
   
-  - [ ] 5.2 Write property test for database round-trip consistency
+  - [-] 5.2 Write property test for database round-trip consistency
     - **Property 5: Database Round-Trip Consistency**
     - **Validates: Requirements 2.3, 4.3, 6.1**
     - Generate random image metadata and tags
