@@ -2,6 +2,15 @@ import FilterCard from "@/components/FilterCard";
 
 const filters = [
   {
+    title: "Favorites",
+    count: 156,
+    description: "Your most loved photos and videos in one place.",
+    imageUrl:
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuCxECostXjN5LwP8p1-8CuE8Mfa7mk4EwNNknQ7Dgd3ToQRA741ML7gQT0eDavMr_pm3hTlpmSuQjPf7NQ8QZ_r7kkSzW8S725_vkAQLERzbeXDv2pcl3vIgeNbe9FbhG-eOz0s5y9K7ur6hMcZeADivchlnf9uBx0CEjHbY2by6c1C171DJ2dvkCemRJuvCv6VaY0Q0udfhcgAimlqHCnn37xTE9dC5YouUUyA5Zz5HDEYXOMiM3vAVqBUsSkO3TspX9Z3T4rA_dY",
+    icon: "favorite",
+    iconColor: "text-red-500",
+  },
+  {
     title: "Documents",
     count: 124,
     description: "Identify receipts, invoices, and text screenshots.",
@@ -94,6 +103,9 @@ export default function Home() {
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
         <button className="flex items-center justify-center h-9 px-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium whitespace-nowrap shadow-sm transition-transform active:scale-95">
           Smart Filters
+        </button>
+        <button className="flex items-center justify-center h-9 px-4 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium whitespace-nowrap transition-colors">
+          Favorites
         </button>
         <button className="flex items-center justify-center h-9 px-4 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-medium whitespace-nowrap transition-colors">
           Themes

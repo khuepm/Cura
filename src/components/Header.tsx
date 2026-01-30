@@ -1,3 +1,4 @@
+import Link from "next/link";
 import React from "react";
 
 export default function Header() {
@@ -36,9 +37,9 @@ export default function Header() {
         </label>
       </div>
       <div className="flex items-center gap-4">
-        <button className="flex items-center justify-center size-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+        <Link href="/settings" className="flex items-center justify-center size-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
           <span className="material-symbols-outlined">settings</span>
-        </button>
+        </Link>
         <button className="flex items-center justify-center size-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
           <span className="material-symbols-outlined">help</span>
         </button>
