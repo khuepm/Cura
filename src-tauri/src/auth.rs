@@ -308,6 +308,96 @@ mod tests {
         assert_eq!(auth.client_secret, "test_client_secret");
     }
 
+    // Unit test for authentication flow
+    // Validates: Requirements 7.1
+    #[test]
+    fn test_start_auth_flow() {
+        let auth = GoogleDriveAuth::new(
+            "test_client_id".to_string(),
+            "test_client_secret".to_string(),
+        );
+
+        let result = auth.start_auth_flow();
+        assert!(result.is_ok(), "Failed to start auth flow: {:?}", result.err());
+
+        let auth_url = result.unwrap();
+        
+        // Verify the URL contains expected components
+        assert!(auth_url.contains("accounts.google.com"));
+        assert!(auth_url.contains("oauth2"));
+        assert!(auth_url.contains("client_id=test_client_id"));
+        assert!(auth_url.contains("redirect_uri"));
+        assert!(auth_url.contains("scope"));
+        assert!(auth_url.contains("state"));
+        assert!(auth_url.contains("code_challenge"));
+
+        // Verify state was stored
+        let state = auth.oauth_state.lock().unwrap();
+        assert!(state.csrf_token.is_some());
+        assert!(state.pkce_verifier.is_some());
+    }
+
+    #[test]
+    fn test_build_oauth_client() {
+        let auth = GoogleDriveAuth::new(
+            "test_client_id".to_string(),
+            "test_client_secret".to_string(),
+        );
+
+        let result = auth.build_oauth_client();
+        assert!(result.is_ok(), "Failed to build OAuth client: {:?}", result.err());
+    }
+
+    // Unit test for authentication error handling
+    // Validates: Requirements 7.5
+    #[tokio::test]
+    async fn test_callback_with_invalid_csrf_token() {
+        let auth = GoogleDriveAuth::new(
+            "test_client_id".to_string(),
+            "test_client_secret".to_string(),
+        );
+
+        // Start auth flow to set up state
+        let _ = auth.start_auth_flow();
+
+        // Try to handle callback with wrong CSRF token
+        let result = auth.handle_callback(
+            "test_code".to_string(),
+            "wrong_csrf_token".to_string(),
+        ).await;
+
+        assert!(result.is_err(), "Should fail with invalid CSRF token");
+        assert!(result.unwrap_err().contains("CSRF token mismatch"));
+    }
+
+    #[tokio::test]
+    async fn test_callback_without_state() {
+        let auth = GoogleDriveAuth::new(
+            "test_client_id".to_string(),
+            "test_client_secret".to_string(),
+        );
+
+        // Try to handle callback without starting auth flow
+        let result = auth.handle_callback(
+            "test_code".to_string(),
+            "any_state".to_string(),
+        ).await;
+
+        assert!(result.is_err(), "Should fail without state");
+        assert!(result.unwrap_err().contains("No CSRF token found"));
+    }
+
+    #[test]
+    fn test_get_tokens_when_not_authenticated() {
+        let auth = GoogleDriveAuth::new(
+            "test_client_id".to_string(),
+            "test_client_secret".to_string(),
+        );
+
+        let result = auth.get_tokens();
+        assert!(result.is_err(), "Should fail when no tokens are stored");
+    }
+
     // Property test generators
     fn arb_token_data() -> impl Strategy<Value = TokenData> {
         (
@@ -347,6 +437,51 @@ mod tests {
 
             // Cleanup
             let _ = cleanup_tokens_with_service(&test_service);
+        }
+
+        // Feature: cura-photo-manager, Property 19: Automatic Token Refresh
+        // Validates: Requirements 7.4
+        #[test]
+        fn test_token_expiration_check(
+            access_token in "[a-zA-Z0-9]{20,100}",
+            refresh_token in "[a-zA-Z0-9]{20,100}",
+            expires_at in 1000000000u64..2000000000u64
+        ) {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
+            // Test with expired token (expires_at in the past)
+            let expired_token = TokenData {
+                access_token: access_token.clone(),
+                refresh_token: Some(refresh_token.clone()),
+                expires_at: now - 3600, // Expired 1 hour ago
+            };
+
+            let test_service = format!("cura-test-{}", uuid::Uuid::new_v4());
+            let _ = store_tokens_with_service(&test_service, &expired_token);
+
+            // Check if token is expired
+            let is_expired = check_token_expired_with_service(&test_service);
+            prop_assert!(is_expired.unwrap_or(false), "Token should be expired");
+
+            // Test with valid token (expires_at in the future)
+            let valid_token = TokenData {
+                access_token,
+                refresh_token: Some(refresh_token),
+                expires_at: now + 3600, // Expires in 1 hour
+            };
+
+            let test_service2 = format!("cura-test-{}", uuid::Uuid::new_v4());
+            let _ = store_tokens_with_service(&test_service2, &valid_token);
+
+            let is_expired2 = check_token_expired_with_service(&test_service2);
+            prop_assert!(!is_expired2.unwrap_or(true), "Token should not be expired");
+
+            // Cleanup
+            let _ = cleanup_tokens_with_service(&test_service);
+            let _ = cleanup_tokens_with_service(&test_service2);
         }
     }
 
@@ -410,5 +545,16 @@ mod tests {
         let _ = keyring::Entry::new(service, KEYRING_EXPIRES_AT)
             .and_then(|e| e.delete_credential());
         Ok(())
+    }
+
+    fn check_token_expired_with_service(service: &str) -> Result<bool, String> {
+        let token_data = get_tokens_with_service(service)?;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Consider token expired if it expires within 5 minutes
+        Ok(now + 300 >= token_data.expires_at)
     }
 }

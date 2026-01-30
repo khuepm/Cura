@@ -169,7 +169,10 @@ impl Database {
     ) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
         
-        conn.execute(
+        // Use a transaction to ensure atomicity
+        let tx = conn.unchecked_transaction()?;
+        
+        tx.execute(
             "INSERT INTO images (
                 path, thumbnail_small, thumbnail_medium, checksum,
                 capture_date, camera_make, camera_model,
@@ -193,7 +196,10 @@ impl Database {
             ],
         )?;
 
-        Ok(conn.last_insert_rowid())
+        let id = tx.last_insert_rowid();
+        tx.commit()?;
+        
+        Ok(id)
     }
 
     /// Insert a tag for an image
@@ -1194,6 +1200,113 @@ mod property_tests {
             // Verify no duplicate was created
             let by_checksum = db.get_image_by_checksum(&metadata.checksum).unwrap().unwrap();
             prop_assert_eq!(by_checksum.id, image_id, "Should be the same image, not a duplicate");
+
+            // Clean up
+            let _ = fs::remove_file(&db_path);
+        }
+
+        // Feature: cura-photo-manager, Property 23: Data Preservation on Crash
+        // Validates: Requirements 11.5
+        #[test]
+        fn property_data_preservation_on_crash(
+            image_count in 3..10usize,
+        ) {
+            let temp_dir = std::env::temp_dir();
+            let db_path = temp_dir.join(format!("test_crash_{}.db", uuid::Uuid::new_v4()));
+            let _ = fs::remove_file(&db_path);
+
+            // Generate test data
+            let images: Vec<TestImageData> = (0..image_count)
+                .map(|i| TestImageData {
+                    path: format!("test_image_{}.jpg", i),
+                    thumbnail_small: format!("thumb_small_{}.jpg", i),
+                    thumbnail_medium: format!("thumb_medium_{}.jpg", i),
+                    checksum: format!("checksum_{}", i),
+                    capture_date: Some(Utc::now()),
+                    camera_make: Some("TestCamera".to_string()),
+                    camera_model: Some("Model1".to_string()),
+                    gps_latitude: Some(37.7749),
+                    gps_longitude: Some(-122.4194),
+                    width: 1920,
+                    height: 1080,
+                    file_size: 1024000,
+                    file_modified: Utc::now(),
+                })
+                .collect();
+
+            let tags_per_image: Vec<Vec<(String, f64)>> = (0..image_count)
+                .map(|i| vec![
+                    (format!("tag1_{}", i), 0.9),
+                    (format!("tag2_{}", i), 0.8),
+                ])
+                .collect();
+
+            // Phase 1: Insert data
+            let mut image_ids = Vec::new();
+            {
+                let db = Database::new(db_path.clone()).unwrap();
+
+                for (metadata, tags) in images.iter().zip(tags_per_image.iter()) {
+                    let image_id = db.insert_image(
+                        &metadata.path,
+                        &metadata.thumbnail_small,
+                        &metadata.thumbnail_medium,
+                        &metadata.checksum,
+                        metadata.capture_date,
+                        metadata.camera_make.as_deref(),
+                        metadata.camera_model.as_deref(),
+                        metadata.gps_latitude,
+                        metadata.gps_longitude,
+                        metadata.width,
+                        metadata.height,
+                        metadata.file_size,
+                        metadata.file_modified,
+                    ).unwrap();
+
+                    for (label, confidence) in tags {
+                        db.insert_tag(image_id, label, *confidence).unwrap();
+                    }
+
+                    image_ids.push(image_id);
+                }
+
+                // Verify data was inserted
+                prop_assert_eq!(image_ids.len(), images.len());
+                
+                // Database connection is dropped here, simulating a "crash"
+            }
+
+            // Phase 2: "Restart" application - open database again
+            {
+                let db = Database::new(db_path.clone()).unwrap();
+
+                // Verify all images are still present
+                for (idx, image_id) in image_ids.iter().enumerate() {
+                    let image = db.get_image_by_id(*image_id).unwrap();
+                    prop_assert!(image.is_some(), "Image {} should still exist after restart", image_id);
+
+                    let image = image.unwrap();
+                    let original_metadata = &images[idx];
+
+                    // Verify metadata is intact
+                    prop_assert_eq!(&image.path, &original_metadata.path);
+                    prop_assert_eq!(&image.checksum, &original_metadata.checksum);
+                    prop_assert_eq!(image.width, original_metadata.width);
+                    prop_assert_eq!(image.height, original_metadata.height);
+
+                    // Verify tags are intact
+                    let tags = db.get_tags_for_image(*image_id).unwrap();
+                    let original_tags = &tags_per_image[idx];
+                    prop_assert_eq!(tags.len(), original_tags.len(), 
+                        "Tag count should match for image {}", image_id);
+
+                    for (label, confidence) in original_tags {
+                        let found = tags.iter().find(|t| &t.label == label);
+                        prop_assert!(found.is_some(), "Tag '{}' should exist for image {}", label, image_id);
+                        prop_assert_eq!(found.unwrap().confidence, *confidence);
+                    }
+                }
+            }
 
             // Clean up
             let _ = fs::remove_file(&db_path);

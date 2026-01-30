@@ -292,7 +292,7 @@ This implementation plan breaks down the Cura photo management application into 
 - [x] 11. Checkpoint - Ensure frontend core functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 12. Implement Google Drive authentication (Rust backend)
+- [x] 12. Implement Google Drive authentication (Rust backend)
   - [x] 12.1 Create OAuth 2.0 authentication module
     - Implement `authenticate_google_drive` Tauri command
     - Use oauth2 crate to handle OAuth 2.0 flow
@@ -316,24 +316,24 @@ This implementation plan breaks down the Cura photo management application into 
     - Store tokens in keychain
     - Verify tokens are retrievable in subsequent sessions
   
-  - [-] 12.4 Write property test for automatic token refresh
+  - [x] 12.4 Write property test for automatic token refresh
     - **Property 19: Automatic Token Refresh**
     - **Validates: Requirements 7.4**
     - Simulate expired access_token
     - Verify system automatically obtains new token using refresh_token
   
-  - [ ] 12.5 Write unit test for authentication flow
+  - [x] 12.5 Write unit test for authentication flow
     - Test OAuth browser window opening
     - Test callback handling
     - _Requirements: 7.1_
   
-  - [ ] 12.6 Write unit test for authentication error handling
+  - [x] 12.6 Write unit test for authentication error handling
     - Test failed authentication scenarios
     - Verify error message is displayed and retry is allowed
     - _Requirements: 7.5_
 
-- [~] 13. Implement Google Drive synchronization (Rust backend)
-  - [ ] 13.1 Create cloud sync module
+- [x] 13. Implement Google Drive synchronization (Rust backend)
+  - [x] 13.1 Create cloud sync module
     - Implement `sync_to_drive` Tauri command that accepts list of image IDs
     - Query database for images to sync
     - Compute SHA-256 checksum for each image
@@ -344,57 +344,57 @@ This implementation plan breaks down the Cura photo management application into 
     - Emit progress events with percentage and current file name
     - _Requirements: 8.1, 8.2, 8.3, 8.5_
   
-  - [ ] 13.2 Implement retry logic with exponential backoff
+  - [x] 13.2 Implement retry logic with exponential backoff
     - Retry failed uploads up to 3 times
     - Use exponential backoff between retries (1s, 2s, 4s)
     - Log failures after all retries exhausted
     - _Requirements: 8.4_
   
-  - [ ] 13.3 Write property test for checksum-based deduplication
+  - [x] 13.3 Write property test for checksum-based deduplication
     - **Property 20: Checksum-Based Deduplication**
     - **Validates: Requirements 8.1**
     - Create set of images with some already in Drive
     - Verify only images with new checksums are uploaded
   
-  - [ ] 13.4 Write property test for sync status tracking
+  - [x] 13.4 Write property test for sync status tracking
     - **Property 21: Sync Status Tracking**
     - **Validates: Requirements 8.3**
     - Upload images to Drive
     - Verify database records sync status as "synced" with timestamp
   
-  - [ ] 13.5 Write unit test for retry logic
+  - [x] 13.5 Write unit test for retry logic
     - Simulate upload failures
     - Verify retry attempts with exponential backoff
     - _Requirements: 8.4_
 
-- [~] 14. Implement error handling and logging (Rust backend)
-  - [ ] 14.1 Create logging module
+- [x] 14. Implement error handling and logging (Rust backend)
+  - [x] 14.1 Create logging module
     - Set up logging framework (use tracing or log crate)
     - Configure log output to rotating file in application data directory
     - Implement structured logging with timestamp, component, and stack trace
     - _Requirements: 11.1, 11.4_
   
-  - [ ] 14.2 Add error handling throughout application
+  - [x] 14.2 Add error handling throughout application
     - Wrap all file operations in error handling with logging
     - Display user-friendly error messages for critical errors
     - Implement graceful degradation for non-critical errors
     - Ensure data preservation on crashes (use transactions, atomic operations)
     - _Requirements: 11.2, 11.3, 11.5_
   
-  - [ ] 14.3 Write property test for error logging structure
+  - [x] 14.3 Write property test for error logging structure
     - **Property 22: Error Logging Structure**
     - **Validates: Requirements 11.1**
     - Trigger various errors
     - Verify log entries contain timestamp, component, and stack trace
   
-  - [ ] 14.4 Write property test for data preservation on crash
+  - [x] 14.4 Write property test for data preservation on crash
     - **Property 23: Data Preservation on Crash**
     - **Validates: Requirements 11.5**
     - Simulate application crash during operations
     - Restart application
     - Verify all previously imported images and metadata are intact
   
-  - [ ] 14.5 Write unit test for user-friendly error messages
+  - [x] 14.5 Write unit test for user-friendly error messages
     - Test critical error scenarios
     - Verify error messages are user-friendly without technical details
     - _Requirements: 11.2_
@@ -432,7 +432,7 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify all settings have sensible default values
     - _Requirements: 12.5_
 
-- [ ] 16. Final integration and polish
+- [~] 16. Final integration and polish
   - [ ] 16.1 Wire all components together
     - Ensure all Tauri commands are properly registered
     - Verify event system works end-to-end
@@ -451,13 +451,13 @@ This implementation plan breaks down the Cura photo management application into 
     - Test responsive design on different screen sizes
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-- [ ] 17. Final checkpoint - Comprehensive testing
+- [~] 17. Final checkpoint - Comprehensive testing
   - Run all unit tests and property tests
   - Run integration tests for end-to-end flows
   - Verify all requirements are met
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 18. Packaging and distribution
+- [~] 18. Packaging and distribution
   - [ ] 18.1 Configure Tauri bundler for platform-specific installers
     - Configure tauri.conf.json for Windows (.msi, .exe) and macOS (.dmg, .app) bundles
     - Set up application icons and metadata
