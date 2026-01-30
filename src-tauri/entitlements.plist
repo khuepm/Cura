@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Allow JIT compilation for web content -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  
+  <!-- Allow unsigned executable memory for web workers -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  
+  <!-- Disable library validation for dynamic loading -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  
+  <!-- Allow reading and writing user-selected files -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+  
+  <!-- Allow network client connections for cloud sync -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+  
+  <!-- Allow access to user's home directory for photo scanning -->
+  <key>com.apple.security.files.user-selected.read-only</key>
+  <true/>
+</dict>
+</plist>

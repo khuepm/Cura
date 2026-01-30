@@ -7,6 +7,7 @@ mod scanner;
 mod settings;
 mod sync;
 mod thumbnail;
+mod updater;
 
 use tauri::Manager;
 use tauri::Emitter;
@@ -471,7 +472,9 @@ pub fn run() {
       is_authenticated,
       sync_to_drive,
       get_settings,
-      save_settings
+      save_settings,
+      updater::check_for_updates,
+      updater::install_update
     ])
     .setup(|app| {
       // Start performance timer for startup
@@ -549,6 +552,12 @@ pub fn run() {
       if startup_time > 3000 {
         logging::log_warning("app", &format!("Startup time {}ms exceeds target of 3000ms", startup_time));
       }
+
+      // Check for updates on startup (async, non-blocking)
+      let app_handle = app.handle().clone();
+      tauri::async_runtime::spawn(async move {
+        updater::check_updates_on_startup(app_handle).await;
+      });
 
       Ok(())
     })

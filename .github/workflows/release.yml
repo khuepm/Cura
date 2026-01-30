@@ -1,0 +1,269 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.id }}
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version from tag
+        id: get-version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Cura Photo Manager v${{ steps.get-version.outputs.version }}
+          body: |
+            ## Cura Photo Manager v${{ steps.get-version.outputs.version }}
+            
+            See [RELEASE_NOTES.md](https://github.com/${{ github.repository }}/blob/${{ github.ref }}/RELEASE_NOTES.md) for details.
+            
+            ### Downloads
+            
+            Choose the appropriate installer for your platform:
+            
+            **Windows:**
+            - `cura-photo-manager_${{ steps.get-version.outputs.version }}_x64-setup.exe` (Recommended)
+            - `cura-photo-manager_${{ steps.get-version.outputs.version }}_x64_en-US.msi`
+            
+            **macOS:**
+            - `cura-photo-manager_${{ steps.get-version.outputs.version }}_x64.dmg` (Intel)
+            - `cura-photo-manager_${{ steps.get-version.outputs.version }}_aarch64.dmg` (Apple Silicon)
+            
+            **Linux:**
+            - `cura-photo-manager_${{ steps.get-version.outputs.version }}_amd64.deb` (Debian/Ubuntu)
+            - `cura-photo-manager-${{ steps.get-version.outputs.version }}-1.x86_64.rpm` (Fedora/RHEL)
+            - `cura-photo-manager_${{ steps.get-version.outputs.version }}_amd64.AppImage` (Universal)
+            
+            ### Checksums
+            
+            See `checksums.txt` for SHA-256 checksums of all installers.
+          draft: true
+          prerelease: false
+
+  build-windows:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run tauri build
+      
+      - name: Generate checksums
+        run: |
+          Get-FileHash -Algorithm SHA256 src-tauri/target/release/bundle/msi/*.msi | 
+            Select-Object Hash, @{Name='File';Expression={Split-Path $_.Path -Leaf}} | 
+            ForEach-Object { "$($_.Hash)  $($_.File)" } | 
+            Out-File -FilePath checksums-windows.txt
+          
+          Get-FileHash -Algorithm SHA256 src-tauri/target/release/bundle/nsis/*-setup.exe | 
+            Select-Object Hash, @{Name='File';Expression={Split-Path $_.Path -Leaf}} | 
+            ForEach-Object { "$($_.Hash)  $($_.File)" } | 
+            Out-File -FilePath checksums-windows.txt -Append
+      
+      - name: Upload MSI
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/msi/cura-photo-manager_${{ needs.create-release.outputs.version }}_x64_en-US.msi
+          asset_name: cura-photo-manager_${{ needs.create-release.outputs.version }}_x64_en-US.msi
+          asset_content_type: application/octet-stream
+      
+      - name: Upload NSIS Installer
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/nsis/cura-photo-manager_${{ needs.create-release.outputs.version }}_x64-setup.exe
+          asset_name: cura-photo-manager_${{ needs.create-release.outputs.version }}_x64-setup.exe
+          asset_content_type: application/octet-stream
+      
+      - name: Upload Windows Checksums
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./checksums-windows.txt
+          asset_name: checksums-windows.txt
+          asset_content_type: text/plain
+
+  build-macos:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            runner: macos-13
+          - target: aarch64-apple-darwin
+            runner: macos-14
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run tauri build -- --target ${{ matrix.target }}
+      
+      - name: Generate checksums
+        run: |
+          shasum -a 256 src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg | 
+            awk '{print $1 "  " $2}' > checksums-macos-${{ matrix.target }}.txt
+      
+      - name: Upload DMG
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/${{ matrix.target }}/release/bundle/dmg/cura-photo-manager_${{ needs.create-release.outputs.version }}_${{ matrix.target == 'x86_64-apple-darwin' && 'x64' || 'aarch64' }}.dmg
+          asset_name: cura-photo-manager_${{ needs.create-release.outputs.version }}_${{ matrix.target == 'x86_64-apple-darwin' && 'x64' || 'aarch64' }}.dmg
+          asset_content_type: application/octet-stream
+      
+      - name: Upload macOS Checksums
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./checksums-macos-${{ matrix.target }}.txt
+          asset_name: checksums-macos-${{ matrix.target }}.txt
+          asset_content_type: text/plain
+
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.0-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+          npm ci
+      
+      - name: Build
+        run: npm run tauri build
+      
+      - name: Generate checksums
+        run: |
+          shasum -a 256 src-tauri/target/release/bundle/deb/*.deb \
+            src-tauri/target/release/bundle/appimage/*.AppImage \
+            src-tauri/target/release/bundle/rpm/*.rpm | 
+            awk '{print $1 "  " $2}' > checksums-linux.txt
+      
+      - name: Upload DEB
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/deb/cura-photo-manager_${{ needs.create-release.outputs.version }}_amd64.deb
+          asset_name: cura-photo-manager_${{ needs.create-release.outputs.version }}_amd64.deb
+          asset_content_type: application/octet-stream
+      
+      - name: Upload AppImage
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/appimage/cura-photo-manager_${{ needs.create-release.outputs.version }}_amd64.AppImage
+          asset_name: cura-photo-manager_${{ needs.create-release.outputs.version }}_amd64.AppImage
+          asset_content_type: application/octet-stream
+      
+      - name: Upload RPM
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/rpm/cura-photo-manager-${{ needs.create-release.outputs.version }}-1.x86_64.rpm
+          asset_name: cura-photo-manager-${{ needs.create-release.outputs.version }}-1.x86_64.rpm
+          asset_content_type: application/octet-stream
+      
+      - name: Upload Linux Checksums
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./checksums-linux.txt
+          asset_name: checksums-linux.txt
+          asset_content_type: text/plain

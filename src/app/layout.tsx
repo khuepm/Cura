@@ -3,6 +3,7 @@ import { Inter, Noto_Sans } from "next/font/google"; // Import fonts
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
+import UpdateNotification from "@/components/UpdateNotification";
 import { AppProvider } from "@/lib/store/AppContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -42,6 +43,7 @@ export default function RootLayout({
               {children}
             </main>
           </div>
+          <UpdateNotification />
         </AppProvider>
       </body>
     </html>

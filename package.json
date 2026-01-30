@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest --run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "release:windows": "powershell -ExecutionPolicy Bypass -File ./scripts/build-release.ps1",
+    "release:unix": "bash ./scripts/build-release.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.1",
