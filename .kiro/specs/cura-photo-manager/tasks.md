@@ -432,26 +432,26 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify all settings have sensible default values
     - _Requirements: 12.5_
 
-- [-] 16. Final integration and polish
+- [x] 16. Final integration and polish
   - [x] 16.1 Wire all components together
     - Ensure all Tauri commands are properly registered
     - Verify event system works end-to-end
     - Test complete user flows from folder selection to cloud sync
     - _Requirements: All_
   
-  - [-] 16.2 Optimize performance
+  - [x] 16.2 Optimize performance
     - Profile application to identify bottlenecks
     - Optimize thumbnail generation and AI inference
     - Ensure application starts within 3 seconds
     - _Requirements: 10.1, 10.2, 10.5_
   
-  - [ ] 16.3 Add final polish to UI
+  - [x] 16.3 Add final polish to UI
     - Ensure consistent styling across all components
     - Add loading states and transitions
     - Test responsive design on different screen sizes
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-- [~] 17. Final checkpoint - Comprehensive testing
+- [-] 17. Final checkpoint - Comprehensive testing
   - Run all unit tests and property tests
   - Run integration tests for end-to-end flows
   - Verify all requirements are met

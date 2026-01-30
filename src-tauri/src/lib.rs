@@ -474,6 +474,9 @@ pub fn run() {
       save_settings
     ])
     .setup(|app| {
+      // Start performance timer for startup
+      let startup_timer = performance::Timer::new();
+
       // Get app data directory
       let app_data_dir = app.path().app_data_dir()?;
       std::fs::create_dir_all(&app_data_dir)?;
@@ -533,6 +536,19 @@ pub fn run() {
       
       // Store settings manager in app state
       app.manage(settings_manager);
+
+      // Initialize performance metrics
+      let metrics = std::sync::Arc::new(performance::PerformanceMetrics::new());
+      app.manage(metrics);
+
+      // Log startup time
+      let startup_time = startup_timer.elapsed_ms();
+      logging::log_info("app", &format!("Application startup completed in {}ms", startup_time));
+
+      // Verify startup time meets requirement (< 3000ms)
+      if startup_time > 3000 {
+        logging::log_warning("app", &format!("Startup time {}ms exceeds target of 3000ms", startup_time));
+      }
 
       Ok(())
     })

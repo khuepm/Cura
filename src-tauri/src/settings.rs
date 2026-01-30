@@ -379,7 +379,6 @@ mod property_tests {
             prop_assert_eq!(loaded_settings.sync_config.exclude_patterns, settings.sync_config.exclude_patterns);
         }
     }
-}
 
     // Feature: cura-photo-manager, Property 25: Settings Validation
     // Validates: Requirements 12.4
@@ -478,3 +477,4 @@ mod property_tests {
             prop_assert!(error_msg.contains("cannot be empty"), "Error message should mention empty path");
         }
     }
+}

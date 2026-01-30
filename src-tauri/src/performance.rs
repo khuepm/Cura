@@ -1,6 +1,5 @@
 /// Performance optimization utilities for Cura Photo Manager
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 use std::time::Instant;
 
 /// Performance metrics tracker
