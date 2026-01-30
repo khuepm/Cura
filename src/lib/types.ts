@@ -65,6 +65,12 @@ export interface SyncConfig {
   excludePatterns: string[];
 }
 
+export interface AppSettings {
+  thumbnailCachePath: string;
+  aiModel: 'clip' | 'mobilenet';
+  syncConfig: SyncConfig;
+}
+
 export interface ScanProgress {
   count: number;
   currentFile: string;

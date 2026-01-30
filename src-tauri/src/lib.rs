@@ -2,7 +2,9 @@ mod auth;
 mod database;
 mod logging;
 mod metadata;
+mod performance;
 mod scanner;
+mod settings;
 mod sync;
 mod thumbnail;
 
@@ -414,6 +416,41 @@ async fn sync_to_drive(
     }
 }
 
+/// Tauri command to get current settings
+#[tauri::command]
+fn get_settings(
+    app_handle: tauri::AppHandle,
+) -> Result<settings::AppSettings, String> {
+    logging::log_debug("settings", "Retrieving current settings");
+    
+    let settings_manager = app_handle.state::<settings::SettingsManager>();
+    
+    settings_manager.get_settings()
+        .map_err(|e| {
+            let io_error = std::io::Error::new(std::io::ErrorKind::Other, e.clone());
+            logging::log_error("settings", "Failed to get settings", &io_error);
+            logging::user_friendly_error(&io_error)
+        })
+}
+
+/// Tauri command to save settings
+#[tauri::command]
+fn save_settings(
+    new_settings: settings::AppSettings,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    logging::log_info("settings", "Saving settings");
+    
+    let settings_manager = app_handle.state::<settings::SettingsManager>();
+    
+    settings_manager.save_settings(new_settings)
+        .map_err(|e| {
+            let io_error = std::io::Error::new(std::io::ErrorKind::Other, e.clone());
+            logging::log_error("settings", "Failed to save settings", &io_error);
+            e // Return original error message for validation errors
+        })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -432,7 +469,9 @@ pub fn run() {
       authenticate_google_drive,
       handle_oauth_callback,
       is_authenticated,
-      sync_to_drive
+      sync_to_drive,
+      get_settings,
+      save_settings
     ])
     .setup(|app| {
       // Get app data directory
@@ -473,6 +512,27 @@ pub fn run() {
       
       // Store database in app state
       app.manage(db);
+
+      // Initialize settings manager
+      let config_path = app_data_dir.join("config.json");
+      let settings_manager = settings::SettingsManager::new(config_path)
+        .map_err(|e| {
+          logging::log_error("settings", "Failed to initialize settings manager", &std::io::Error::new(std::io::ErrorKind::Other, e.clone()));
+          std::io::Error::new(std::io::ErrorKind::Other, format!("Settings initialization failed: {}", e))
+        })?;
+      
+      // Set default thumbnail cache path if not configured
+      let default_cache_path = app_data_dir.join("thumbnails").to_string_lossy().to_string();
+      settings_manager.initialize_with_defaults(&default_cache_path)
+        .map_err(|e| {
+          logging::log_error("settings", "Failed to initialize default settings", &std::io::Error::new(std::io::ErrorKind::Other, e.clone()));
+          std::io::Error::new(std::io::ErrorKind::Other, format!("Default settings initialization failed: {}", e))
+        })?;
+      
+      logging::log_info("settings", "Settings manager initialized successfully");
+      
+      // Store settings manager in app state
+      app.manage(settings_manager);
 
       Ok(())
     })

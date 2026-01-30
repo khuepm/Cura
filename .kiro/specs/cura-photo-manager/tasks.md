@@ -399,47 +399,47 @@ This implementation plan breaks down the Cura photo management application into 
     - Verify error messages are user-friendly without technical details
     - _Requirements: 11.2_
 
-- [~] 15. Implement settings and configuration (Next.js frontend + Rust backend)
-  - [ ] 15.1 Create settings UI component
+- [x] 15. Implement settings and configuration (Next.js frontend + Rust backend)
+  - [x] 15.1 Create settings UI component
     - Implement settings page with form inputs
     - Add settings for thumbnail cache location, AI model selection, sync preferences
     - Display current settings values
     - Validate user inputs and show error messages for invalid values
     - _Requirements: 12.1, 12.4_
   
-  - [ ] 15.2 Create settings persistence module (Rust backend)
+  - [x] 15.2 Create settings persistence module (Rust backend)
     - Implement Tauri commands to save and load settings
     - Store settings in configuration file (JSON or TOML)
     - Provide default values for all settings on first run
     - Load settings on application startup and apply them
     - _Requirements: 12.2, 12.3, 12.5_
   
-  - [ ] 15.3 Write property test for settings persistence round-trip
+  - [x] 15.3 Write property test for settings persistence round-trip
     - **Property 24: Settings Persistence Round-Trip**
     - **Validates: Requirements 12.2, 12.3**
     - Generate random configuration changes
     - Save settings and restart application
     - Verify changed values are preserved
   
-  - [ ] 15.4 Write property test for settings validation
+  - [x] 15.4 Write property test for settings validation
     - **Property 25: Settings Validation**
     - **Validates: Requirements 12.4**
     - Test with invalid configuration values
     - Verify system rejects input with descriptive error messages
   
-  - [ ] 15.5 Write unit test for default settings
+  - [x] 15.5 Write unit test for default settings
     - Test first run scenario
     - Verify all settings have sensible default values
     - _Requirements: 12.5_
 
-- [~] 16. Final integration and polish
-  - [ ] 16.1 Wire all components together
+- [-] 16. Final integration and polish
+  - [x] 16.1 Wire all components together
     - Ensure all Tauri commands are properly registered
     - Verify event system works end-to-end
     - Test complete user flows from folder selection to cloud sync
     - _Requirements: All_
   
-  - [ ] 16.2 Optimize performance
+  - [-] 16.2 Optimize performance
     - Profile application to identify bottlenecks
     - Optimize thumbnail generation and AI inference
     - Ensure application starts within 3 seconds
