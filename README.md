@@ -69,6 +69,48 @@ Build for production:
 npm run tauri build
 ```
 
+## Releases
+
+### Creating a Release
+
+To create a complete release with all artifacts:
+
+**Windows:**
+```powershell
+.\scripts\prepare-release.ps1 -Version "1.0.0"
+```
+
+**macOS/Linux:**
+```bash
+./scripts/prepare-release.sh 1.0.0
+```
+
+This will:
+- Run all tests
+- Build release artifacts for your platform
+- Generate SHA-256 checksums
+- Create release notes from template
+- Create testing checklist
+
+### Release Documentation
+
+- **[Release Process Guide](docs/RELEASE_PROCESS.md)** - Complete release workflow
+- **[Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md)** - Installer information
+- **[Distribution Guide](DISTRIBUTION.md)** - Building and distribution
+- **[Code Signing Guide](CODE_SIGNING.md)** - Code signing setup
+
+### Verifying Downloads
+
+Users can verify installer integrity:
+
+```bash
+# Windows
+.\scripts\verify-checksum.ps1 -InstallerPath "installer.exe" -ChecksumFile "checksums.txt"
+
+# macOS/Linux
+./scripts/verify-checksum.sh installer.dmg checksums.txt
+```
+
 ## Project Structure
 
 ```

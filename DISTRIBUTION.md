@@ -2,6 +2,34 @@
 
 This document provides instructions for building and distributing Cura Photo Manager installers.
 
+## Quick Links
+
+- **[Release Process Guide](docs/RELEASE_PROCESS.md)** - Complete step-by-step release process
+- **[Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md)** - Information about installers and packages
+- **[Code Signing Guide](CODE_SIGNING.md)** - Code signing setup and procedures
+- **[Auto-Update Guide](AUTO_UPDATE.md)** - Auto-update configuration
+
+## Quick Start
+
+To create a complete release with all artifacts:
+
+**Windows:**
+```powershell
+.\scripts\prepare-release.ps1 -Version "1.0.0"
+```
+
+**macOS/Linux:**
+```bash
+./scripts/prepare-release.sh 1.0.0
+```
+
+This will:
+1. Run all tests
+2. Build release artifacts
+3. Generate checksums
+4. Create release notes
+5. Create testing checklist
+
 ## Prerequisites
 
 ### All Platforms
