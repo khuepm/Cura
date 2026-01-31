@@ -17,7 +17,7 @@ export default function Header() {
             </svg>
           </div>
           <h2 className="text-xl font-bold leading-tight tracking-tight">
-            Image Manager
+            Cura
           </h2>
         </div>
         {/* Search Bar */}

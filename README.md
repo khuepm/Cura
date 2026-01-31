@@ -1,36 +1,140 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cura Photo Manager
 
-## Getting Started
+A desktop photo management application built with Tauri (Rust backend) and Next.js (React frontend).
 
-First, run the development server:
+## Features
 
+- Automated image scanning and metadata extraction
+- AI-powered image classification using Transformers.js
+- Fast thumbnail generation with caching
+- Natural language search with CLIP
+- Google Drive cloud synchronization
+- SQLite database for efficient metadata storage
+
+## Tech Stack
+
+### Backend (Rust)
+- **Tauri**: Desktop application framework
+- **image**: Image processing and manipulation
+- **kamadak-exif**: EXIF metadata extraction
+- **rayon**: Parallel processing
+- **walkdir**: Directory traversal
+- **rusqlite**: SQLite database
+- **proptest**: Property-based testing
+
+### Frontend (Next.js/React)
+- **Next.js**: React framework
+- **@xenova/transformers**: Browser-based AI models
+- **react-window**: Virtual scrolling for performance
+- **Tailwind CSS**: Styling
+- **fast-check**: Property-based testing
+- **vitest**: Testing framework
+
+## Development Setup
+
+### Prerequisites
+- Node.js 20+ and npm/pnpm
+- Rust 1.77.2+
+- Cargo
+
+### Installation
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Run in development mode:
+```bash
+npm run tauri dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Testing
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Run frontend tests:
+```bash
+npm test
+```
 
-## Learn More
+Run Rust tests:
+```bash
+cd src-tauri
+cargo test
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Building
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Build for production:
+```bash
+npm run tauri build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Releases
 
-## Deploy on Vercel
+### Creating a Release
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To create a complete release with all artifacts:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Windows:**
+```powershell
+.\scripts\prepare-release.ps1 -Version "1.0.0"
+```
+
+**macOS/Linux:**
+```bash
+./scripts/prepare-release.sh 1.0.0
+```
+
+This will:
+- Run all tests
+- Build release artifacts for your platform
+- Generate SHA-256 checksums
+- Create release notes from template
+- Create testing checklist
+
+### Release Documentation
+
+- **[Release Process Guide](docs/RELEASE_PROCESS.md)** - Complete release workflow
+- **[Release Artifacts Guide](docs/RELEASE_ARTIFACTS.md)** - Installer information
+- **[Distribution Guide](DISTRIBUTION.md)** - Building and distribution
+- **[Code Signing Guide](CODE_SIGNING.md)** - Code signing setup
+
+### Verifying Downloads
+
+Users can verify installer integrity:
+
+```bash
+# Windows
+.\scripts\verify-checksum.ps1 -InstallerPath "installer.exe" -ChecksumFile "checksums.txt"
+
+# macOS/Linux
+./scripts/verify-checksum.sh installer.dmg checksums.txt
+```
+
+## Project Structure
+
+```
+.
+├── src/                    # Next.js frontend source
+│   ├── app/               # Next.js app router pages
+│   ├── components/        # React components
+│   └── __tests__/         # Frontend tests
+├── src-tauri/             # Rust backend source
+│   └── src/
+│       ├── database.rs    # SQLite database module
+│       ├── lib.rs         # Main application entry
+│       └── main.rs        # Binary entry point
+├── .kiro/specs/           # Feature specifications
+└── public/                # Static assets
+```
+
+## Database Schema
+
+The application uses SQLite with three main tables:
+- **images**: Stores image metadata and file paths
+- **tags**: AI-generated content tags with confidence scores
+- **embeddings**: CLIP embeddings for semantic search
+
+## License
+
+[Your License Here]

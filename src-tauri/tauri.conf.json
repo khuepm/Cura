@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "gallery-app",
+  "productName": "cura-photo-manager",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.cura.photomanager",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "Image Manager",
-        "width": 800,
-        "height": 600,
+        "title": "Cura Photo Manager",
+        "width": 1200,
+        "height": 800,
         "resizable": true,
         "fullscreen": false
       }
@@ -32,6 +32,94 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Cura Photo Manager Team",
+    "copyright": "Copyright © 2026 Cura Photo Manager. All rights reserved.",
+    "category": "Photography",
+    "shortDescription": "AI-powered photo management and organization",
+    "longDescription": "Cura is a desktop photo management application that helps you organize, search, and backup your photo collections through automated metadata extraction, AI-powered classification, and cloud synchronization with Google Drive.",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "wix": {
+        "language": "en-US",
+        "template": null,
+        "fragmentPaths": [],
+        "componentRefs": [],
+        "featureRefs": [],
+        "mergeRefs": [],
+        "skipWebviewInstall": false,
+        "license": null,
+        "enableElevatedUpdateInstall": false,
+        "bannerPath": null,
+        "dialogImagePath": null
+      },
+      "nsis": {
+        "license": null,
+        "headerImage": null,
+        "sidebarImage": null,
+        "installerIcon": null,
+        "installMode": "perUser",
+        "languages": ["en-US"],
+        "displayLanguageSelector": false,
+        "compressionLevel": "high",
+        "customLanguageFiles": {}
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": "entitlements.plist",
+      "dmg": {
+        "background": null,
+        "windowSize": {
+          "width": 600,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 420,
+          "y": 170
+        }
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  },
+  "plugins": {
+    "dialog": {
+      "all": true,
+      "open": true
+    },
+    "fs": {
+      "scope": ["$APPDATA/**", "$HOME/**"]
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://releases.cura-photo-manager.com/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "dialog": true,
+      "pubkey": "YOUR_PUBLIC_KEY_HERE",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
