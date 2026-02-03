@@ -1,5 +1,6 @@
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter};
 use serde::{Deserialize, Serialize};
+use log::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {
@@ -71,7 +72,7 @@ pub async fn check_updates_on_startup(app: AppHandle) {
             }
         }
         Err(e) => {
-            tracing::warn!("Failed to check for updates on startup: {}", e);
+            warn!("Failed to check for updates on startup: {}", e);
         }
     }
 }
