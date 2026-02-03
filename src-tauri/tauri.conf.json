@@ -49,21 +49,18 @@
         "componentRefs": [],
         "featureRefs": [],
         "mergeRefs": [],
-        "skipWebviewInstall": false,
-        "license": null,
-        "enableElevatedUpdateInstall": false,
+        "enableElevatedUpdateTask": false,
         "bannerPath": null,
         "dialogImagePath": null
       },
       "nsis": {
-        "license": null,
         "headerImage": null,
         "sidebarImage": null,
         "installerIcon": null,
-        "installMode": "perUser",
+        "installMode": "currentUser",
         "languages": ["en-US"],
         "displayLanguageSelector": false,
-        "compressionLevel": "high",
+        "compression": "lzma",
         "customLanguageFiles": {}
       },
       "webviewInstallMode": {
