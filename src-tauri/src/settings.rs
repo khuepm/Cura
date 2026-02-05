@@ -630,6 +630,163 @@ mod property_tests {
         }
     }
 
+    // Feature: cura-photo-manager, Property 29: Format Configuration Persistence
+    // Validates: Requirements 12.2, 12.3 (extended)
+    
+    fn arb_valid_format_string() -> impl Strategy<Value = String> {
+        // Generate valid format strings (lowercase alphanumeric, 2-5 chars)
+        "[a-z0-9]{2,5}"
+    }
+    
+    fn arb_format_config() -> impl Strategy<Value = FormatConfig> {
+        (
+            prop::collection::vec(arb_valid_format_string(), 1..10),
+            prop::collection::vec(arb_valid_format_string(), 1..10),
+        )
+            .prop_map(|(image_formats, video_formats)| {
+                FormatConfig {
+                    image_formats,
+                    video_formats,
+                }
+            })
+    }
+    
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+        
+        #[test]
+        fn test_format_configuration_persistence(format_config in arb_format_config()) {
+            let temp_dir = TempDir::new().unwrap();
+            let config_path = temp_dir.path().join("config.json");
+            
+            // Create manager with default settings
+            let manager = SettingsManager::new(config_path.clone()).unwrap();
+            manager.initialize_with_defaults("/tmp/cache").unwrap();
+            
+            // Get current settings and update format config
+            let mut settings = manager.get_settings().unwrap();
+            settings.format_config = format_config.clone();
+            
+            // Save the updated settings
+            manager.save_settings(settings).unwrap();
+            
+            // Simulate application restart by creating a new manager
+            let manager2 = SettingsManager::new(config_path).unwrap();
+            let loaded_settings = manager2.get_settings().unwrap();
+            
+            // Verify format configuration is preserved
+            prop_assert_eq!(
+                loaded_settings.format_config.image_formats,
+                format_config.image_formats,
+                "Image formats should be preserved after restart"
+            );
+            prop_assert_eq!(
+                loaded_settings.format_config.video_formats,
+                format_config.video_formats,
+                "Video formats should be preserved after restart"
+            );
+        }
+    }
+    
+    // Feature: cura-photo-manager, Property 32: Default Format Configuration
+    // Validates: Requirements 12.5 (extended)
+    
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+        
+        #[test]
+        fn test_default_format_configuration(cache_path in "[a-zA-Z0-9/_-]{5,50}") {
+            // Simulate first-time application startup by creating a new settings manager
+            // with a non-existent config file
+            let temp_dir = TempDir::new().unwrap();
+            let config_path = temp_dir.path().join("new_config.json");
+            
+            // Ensure config file doesn't exist (first-time startup)
+            prop_assert!(!config_path.exists(), "Config file should not exist for first-time startup");
+            
+            // Create settings manager (simulates first-time startup)
+            let manager = SettingsManager::new(config_path.clone()).unwrap();
+            
+            // Initialize with default cache path
+            manager.initialize_with_defaults(&cache_path).unwrap();
+            
+            // Get the settings
+            let settings = manager.get_settings().unwrap();
+            let format_config = settings.format_config;
+            
+            // Verify default image formats are present
+            let expected_image_formats = vec![
+                "jpg", "jpeg", "png", "heic", "raw", "cr2", "nef", "dng", 
+                "arw", "webp", "gif", "bmp", "tiff"
+            ];
+            
+            for format in &expected_image_formats {
+                prop_assert!(
+                    format_config.image_formats.contains(&format.to_string()),
+                    "Default configuration should include image format: {}",
+                    format
+                );
+            }
+            
+            // Verify all common image formats are included
+            prop_assert_eq!(
+                format_config.image_formats.len(),
+                expected_image_formats.len(),
+                "Default configuration should include all {} common image formats",
+                expected_image_formats.len()
+            );
+            
+            // Verify default video formats are present
+            let expected_video_formats = vec![
+                "mp4", "mov", "avi", "mkv", "webm", "flv", "wmv", 
+                "m4v", "mpg", "mpeg", "3gp"
+            ];
+            
+            for format in &expected_video_formats {
+                prop_assert!(
+                    format_config.video_formats.contains(&format.to_string()),
+                    "Default configuration should include video format: {}",
+                    format
+                );
+            }
+            
+            // Verify all common video formats are included
+            prop_assert_eq!(
+                format_config.video_formats.len(),
+                expected_video_formats.len(),
+                "Default configuration should include all {} common video formats",
+                expected_video_formats.len()
+            );
+            
+            // Verify format strings are valid (lowercase, no dots)
+            for format in &format_config.image_formats {
+                prop_assert!(
+                    format == &format.to_lowercase(),
+                    "Image format '{}' should be lowercase",
+                    format
+                );
+                prop_assert!(
+                    !format.contains('.'),
+                    "Image format '{}' should not contain dots",
+                    format
+                );
+            }
+            
+            for format in &format_config.video_formats {
+                prop_assert!(
+                    format == &format.to_lowercase(),
+                    "Video format '{}' should be lowercase",
+                    format
+                );
+                prop_assert!(
+                    !format.contains('.'),
+                    "Video format '{}' should not contain dots",
+                    format
+                );
+            }
+        }
+    }
+    
     // Feature: cura-photo-manager, Property 25: Settings Validation
     // Validates: Requirements 12.4
     

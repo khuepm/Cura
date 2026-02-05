@@ -519,7 +519,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 12.1, 12.2, 12.5 (extended)_
   
-  - [-] 20.2 Create format selection UI component (Next.js frontend)
+  - [x] 20.2 Create format selection UI component (Next.js frontend)
     - Create FormatSelection component with checkboxes for each format
     - Add "Select All" / "Deselect All" buttons for image and video sections
     - Display format counts (e.g., "12 of 15 image formats selected")
@@ -529,20 +529,20 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 12.1_
   
-  - [~] 20.3 Write property test for format configuration persistence
+  - [x] 20.3 Write property test for format configuration persistence
     - **Property 29: Format Configuration Persistence**
     - **Validates: Requirements 12.2, 12.3 (extended)**
     - Generate random format configuration changes
     - Save configuration and restart application
     - Verify changed format selections are preserved
   
-  - [~] 20.4 Write property test for default format configuration
+  - [x] 20.4 Write property test for default format configuration
     - **Property 32: Default Format Configuration**
     - **Validates: Requirements 12.5 (extended)**
     - Test first-time application startup
     - Verify default configuration includes all common formats
   
-  - [~] 20.5 Write unit test for format validation
+  - [x] 20.5 Write unit test for format validation
     - Test with invalid format strings (uppercase, with dots, special characters)
     - Verify validation rejects invalid inputs
     - create github commit for this task then push to github
