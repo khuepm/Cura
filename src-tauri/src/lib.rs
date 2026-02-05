@@ -474,6 +474,9 @@ pub fn run() {
       sync_to_drive,
       get_settings,
       save_settings,
+      settings::get_format_config,
+      settings::set_format_config,
+      settings::get_default_formats,
       updater::check_for_updates,
       updater::install_update
     ])

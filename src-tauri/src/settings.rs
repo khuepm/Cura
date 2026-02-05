@@ -14,6 +14,19 @@ pub struct AppSettings {
     
     /// Cloud sync configuration
     pub sync_config: SyncConfig,
+    
+    /// Format configuration for media files
+    pub format_config: FormatConfig,
+}
+
+/// Format configuration for supported media types
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FormatConfig {
+    /// Supported image formats (lowercase, no dots)
+    pub image_formats: Vec<String>,
+    
+    /// Supported video formats (lowercase, no dots)
+    pub video_formats: Vec<String>,
 }
 
 /// Cloud synchronization settings
@@ -41,6 +54,42 @@ impl Default for AppSettings {
             thumbnail_cache_path: String::new(), // Will be set to app data dir
             ai_model: "mobilenet".to_string(),
             sync_config: SyncConfig::default(),
+            format_config: FormatConfig::default(),
+        }
+    }
+}
+
+impl Default for FormatConfig {
+    fn default() -> Self {
+        Self {
+            image_formats: vec![
+                "jpg".to_string(),
+                "jpeg".to_string(),
+                "png".to_string(),
+                "heic".to_string(),
+                "raw".to_string(),
+                "cr2".to_string(),
+                "nef".to_string(),
+                "dng".to_string(),
+                "arw".to_string(),
+                "webp".to_string(),
+                "gif".to_string(),
+                "bmp".to_string(),
+                "tiff".to_string(),
+            ],
+            video_formats: vec![
+                "mp4".to_string(),
+                "mov".to_string(),
+                "avi".to_string(),
+                "mkv".to_string(),
+                "webm".to_string(),
+                "flv".to_string(),
+                "wmv".to_string(),
+                "m4v".to_string(),
+                "mpg".to_string(),
+                "mpeg".to_string(),
+                "3gp".to_string(),
+            ],
         }
     }
 }
@@ -153,6 +202,64 @@ impl SettingsManager {
             return Err("Thumbnail cache path cannot be empty.".to_string());
         }
         
+        // Validate format configuration
+        Self::validate_format_config(&settings.format_config)?;
+        
+        Ok(())
+    }
+    
+    /// Validate format configuration
+    fn validate_format_config(config: &FormatConfig) -> Result<(), String> {
+        // Validate image formats
+        for format in &config.image_formats {
+            Self::validate_format_string(format)?;
+        }
+        
+        // Validate video formats
+        for format in &config.video_formats {
+            Self::validate_format_string(format)?;
+        }
+        
+        // Ensure at least one format is selected in each category
+        if config.image_formats.is_empty() {
+            return Err("At least one image format must be selected.".to_string());
+        }
+        
+        if config.video_formats.is_empty() {
+            return Err("At least one video format must be selected.".to_string());
+        }
+        
+        Ok(())
+    }
+    
+    /// Validate a single format string (must be lowercase, no dots)
+    fn validate_format_string(format: &str) -> Result<(), String> {
+        if format.is_empty() {
+            return Err("Format string cannot be empty.".to_string());
+        }
+        
+        if format.contains('.') {
+            return Err(format!(
+                "Format string '{}' cannot contain dots. Use 'jpg' instead of '.jpg'.",
+                format
+            ));
+        }
+        
+        if format != format.to_lowercase() {
+            return Err(format!(
+                "Format string '{}' must be lowercase.",
+                format
+            ));
+        }
+        
+        // Check for invalid characters (only alphanumeric allowed)
+        if !format.chars().all(|c| c.is_alphanumeric()) {
+            return Err(format!(
+                "Format string '{}' contains invalid characters. Only alphanumeric characters are allowed.",
+                format
+            ));
+        }
+        
         Ok(())
     }
     
@@ -168,6 +275,45 @@ impl SettingsManager {
         
         Ok(())
     }
+}
+
+/// Tauri command to get format configuration
+#[tauri::command]
+pub fn get_format_config(
+    settings_manager: tauri::State<Arc<Mutex<SettingsManager>>>,
+) -> Result<FormatConfig, String> {
+    let manager = settings_manager
+        .lock()
+        .map_err(|e| format!("Failed to lock settings manager: {}", e))?;
+    
+    let settings = manager.get_settings()?;
+    Ok(settings.format_config)
+}
+
+/// Tauri command to set format configuration
+#[tauri::command]
+pub fn set_format_config(
+    config: FormatConfig,
+    settings_manager: tauri::State<Arc<Mutex<SettingsManager>>>,
+) -> Result<(), String> {
+    // Validate format configuration
+    SettingsManager::validate_format_config(&config)?;
+    
+    let manager = settings_manager
+        .lock()
+        .map_err(|e| format!("Failed to lock settings manager: {}", e))?;
+    
+    let mut settings = manager.get_settings()?;
+    settings.format_config = config;
+    manager.save_settings(settings)?;
+    
+    Ok(())
+}
+
+/// Tauri command to get default format configuration
+#[tauri::command]
+pub fn get_default_formats() -> Result<FormatConfig, String> {
+    Ok(FormatConfig::default())
 }
 
 #[cfg(test)]
@@ -196,6 +342,7 @@ mod tests {
                 upload_quality: "original".to_string(),
                 exclude_patterns: vec!["*.tmp".to_string()],
             },
+            format_config: FormatConfig::default(),
         };
         
         assert!(SettingsManager::validate_settings(&settings).is_ok());
@@ -207,6 +354,7 @@ mod tests {
             thumbnail_cache_path: "/tmp/cache".to_string(),
             ai_model: "invalid_model".to_string(),
             sync_config: SyncConfig::default(),
+            format_config: FormatConfig::default(),
         };
         
         let result = SettingsManager::validate_settings(&settings);
@@ -226,6 +374,7 @@ mod tests {
                 upload_quality: "ultra".to_string(),
                 exclude_patterns: vec![],
             },
+            format_config: FormatConfig::default(),
         };
         
         let result = SettingsManager::validate_settings(&settings);
@@ -245,6 +394,7 @@ mod tests {
                 upload_quality: "high".to_string(),
                 exclude_patterns: vec![],
             },
+            format_config: FormatConfig::default(),
         };
         
         let result = SettingsManager::validate_settings(&settings);
@@ -258,6 +408,7 @@ mod tests {
             thumbnail_cache_path: "".to_string(),
             ai_model: "mobilenet".to_string(),
             sync_config: SyncConfig::default(),
+            format_config: FormatConfig::default(),
         };
         
         let result = SettingsManager::validate_settings(&settings);
@@ -282,6 +433,7 @@ mod tests {
                 upload_quality: "medium".to_string(),
                 exclude_patterns: vec!["*.raw".to_string()],
             },
+            format_config: FormatConfig::default(),
         };
         
         // Save settings
@@ -306,6 +458,103 @@ mod tests {
         
         let settings = manager.get_settings().unwrap();
         assert_eq!(settings.thumbnail_cache_path, "/app/cache");
+    }
+    
+    #[test]
+    fn test_default_format_config() {
+        let config = FormatConfig::default();
+        
+        // Verify default image formats
+        assert!(config.image_formats.contains(&"jpg".to_string()));
+        assert!(config.image_formats.contains(&"jpeg".to_string()));
+        assert!(config.image_formats.contains(&"png".to_string()));
+        assert!(config.image_formats.contains(&"heic".to_string()));
+        assert!(config.image_formats.contains(&"raw".to_string()));
+        assert_eq!(config.image_formats.len(), 13);
+        
+        // Verify default video formats
+        assert!(config.video_formats.contains(&"mp4".to_string()));
+        assert!(config.video_formats.contains(&"mov".to_string()));
+        assert!(config.video_formats.contains(&"avi".to_string()));
+        assert!(config.video_formats.contains(&"mkv".to_string()));
+        assert_eq!(config.video_formats.len(), 11);
+    }
+    
+    #[test]
+    fn test_validate_format_string_valid() {
+        assert!(SettingsManager::validate_format_string("jpg").is_ok());
+        assert!(SettingsManager::validate_format_string("mp4").is_ok());
+        assert!(SettingsManager::validate_format_string("heic").is_ok());
+    }
+    
+    #[test]
+    fn test_validate_format_string_with_dot() {
+        let result = SettingsManager::validate_format_string(".jpg");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("cannot contain dots"));
+    }
+    
+    #[test]
+    fn test_validate_format_string_uppercase() {
+        let result = SettingsManager::validate_format_string("JPG");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must be lowercase"));
+    }
+    
+    #[test]
+    fn test_validate_format_string_empty() {
+        let result = SettingsManager::validate_format_string("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("cannot be empty"));
+    }
+    
+    #[test]
+    fn test_validate_format_string_special_chars() {
+        let result = SettingsManager::validate_format_string("jpg-test");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid characters"));
+    }
+    
+    #[test]
+    fn test_validate_format_config_valid() {
+        let config = FormatConfig {
+            image_formats: vec!["jpg".to_string(), "png".to_string()],
+            video_formats: vec!["mp4".to_string(), "mov".to_string()],
+        };
+        assert!(SettingsManager::validate_format_config(&config).is_ok());
+    }
+    
+    #[test]
+    fn test_validate_format_config_empty_images() {
+        let config = FormatConfig {
+            image_formats: vec![],
+            video_formats: vec!["mp4".to_string()],
+        };
+        let result = SettingsManager::validate_format_config(&config);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("At least one image format"));
+    }
+    
+    #[test]
+    fn test_validate_format_config_empty_videos() {
+        let config = FormatConfig {
+            image_formats: vec!["jpg".to_string()],
+            video_formats: vec![],
+        };
+        let result = SettingsManager::validate_format_config(&config);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("At least one video format"));
+    }
+    
+    #[test]
+    fn test_validate_format_config_invalid_format() {
+        let config = FormatConfig {
+            image_formats: vec!["jpg".to_string(), ".png".to_string()],
+            video_formats: vec!["mp4".to_string()],
+        };
+        let result = SettingsManager::validate_format_config(&config);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("cannot contain dots"));
     }
 }
 
@@ -349,6 +598,7 @@ mod property_tests {
                     thumbnail_cache_path: cache_path.to_string(),
                     ai_model: ai_model.to_string(),
                     sync_config,
+                    format_config: FormatConfig::default(),
                 }
             })
     }
@@ -411,6 +661,7 @@ mod property_tests {
                 thumbnail_cache_path: "/tmp/cache".to_string(),
                 ai_model: invalid_model.clone(),
                 sync_config: SyncConfig::default(),
+                format_config: FormatConfig::default(),
             };
             
             let result = SettingsManager::validate_settings(&settings);
@@ -432,6 +683,7 @@ mod property_tests {
                     upload_quality: invalid_quality.clone(),
                     exclude_patterns: vec![],
                 },
+                format_config: FormatConfig::default(),
             };
             
             let result = SettingsManager::validate_settings(&settings);
@@ -453,6 +705,7 @@ mod property_tests {
                     upload_quality: "high".to_string(),
                     exclude_patterns: vec![],
                 },
+                format_config: FormatConfig::default(),
             };
             
             let result = SettingsManager::validate_settings(&settings);
@@ -468,6 +721,7 @@ mod property_tests {
                 thumbnail_cache_path: empty_path.clone(),
                 ai_model: "clip".to_string(),
                 sync_config: SyncConfig::default(),
+                format_config: FormatConfig::default(),
             };
             
             let result = SettingsManager::validate_settings(&settings);

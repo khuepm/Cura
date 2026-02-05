@@ -508,7 +508,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 6.3_
 
 - [ ] 20. Implement format configuration system
-  - [~] 20.1 Create format configuration module (Rust backend)
+  - [-] 20.1 Create format configuration module (Rust backend)
     - Implement get_format_config Tauri command
     - Implement set_format_config Tauri command
     - Implement get_default_formats Tauri command
