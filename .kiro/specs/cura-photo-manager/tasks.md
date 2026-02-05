@@ -550,7 +550,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 12.4_
 
 - [ ] 21. Update media scanner for video support
-  - [-] 21.1 Extend scanner to handle video files
+  - [x] 21.1 Extend scanner to handle video files
     - Update scan_folder command to accept FormatConfig parameter
     - Add video format filtering based on configuration
     - Determine media type (image/video) based on file extension
@@ -559,13 +559,13 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 1.2, 1.4 (extended)_
   
-  - [~] 21.2 Write property test for video format support
+  - [x] 21.2 Write property test for video format support
     - **Property 26: Video Format Support**
     - **Validates: Requirements 1.4 (extended)**
     - Test with sample videos in MP4, MOV, AVI, MKV formats
     - Verify each format is successfully discovered
   
-  - [~] 21.3 Write unit test for format configuration filtering
+  - [x] 21.3 Write unit test for format configuration filtering
     - Test scanner with custom format configuration
     - Verify only configured formats are discovered
     - create github commit for this task then push to github

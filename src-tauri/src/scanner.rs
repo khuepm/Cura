@@ -327,6 +327,204 @@ mod tests {
         assert!(!result.media_files.iter().any(|m| m.path.ends_with(".png")));
         assert!(!result.media_files.iter().any(|m| m.path.ends_with(".avi")));
     }
+
+    #[test]
+    fn test_scan_folder_with_empty_image_formats() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+        
+        // Create image and video files
+        let mut jpg = fs::File::create(base_path.join("image.jpg")).unwrap();
+        jpg.write_all(b"fake image data").unwrap();
+        
+        let mut png = fs::File::create(base_path.join("image.png")).unwrap();
+        png.write_all(b"fake image data").unwrap();
+        
+        let mut mp4 = fs::File::create(base_path.join("video.mp4")).unwrap();
+        mp4.write_all(b"fake video data").unwrap();
+        
+        // Config with no image formats, only video formats
+        let config = FormatConfig {
+            image_formats: vec![],
+            video_formats: vec!["mp4".to_string()],
+        };
+        
+        let result = scan_folder(base_path.to_str().unwrap(), Some(config)).unwrap();
+        
+        // Should only find videos, no images
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.image_count, 0);
+        assert_eq!(result.video_count, 1);
+        assert!(result.media_files.iter().any(|m| m.path.ends_with(".mp4")));
+        assert!(!result.media_files.iter().any(|m| m.path.ends_with(".jpg")));
+        assert!(!result.media_files.iter().any(|m| m.path.ends_with(".png")));
+    }
+
+    #[test]
+    fn test_scan_folder_with_empty_video_formats() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+        
+        // Create image and video files
+        let mut jpg = fs::File::create(base_path.join("image.jpg")).unwrap();
+        jpg.write_all(b"fake image data").unwrap();
+        
+        let mut mp4 = fs::File::create(base_path.join("video.mp4")).unwrap();
+        mp4.write_all(b"fake video data").unwrap();
+        
+        let mut mov = fs::File::create(base_path.join("video.mov")).unwrap();
+        mov.write_all(b"fake video data").unwrap();
+        
+        // Config with no video formats, only image formats
+        let config = FormatConfig {
+            image_formats: vec!["jpg".to_string()],
+            video_formats: vec![],
+        };
+        
+        let result = scan_folder(base_path.to_str().unwrap(), Some(config)).unwrap();
+        
+        // Should only find images, no videos
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.image_count, 1);
+        assert_eq!(result.video_count, 0);
+        assert!(result.media_files.iter().any(|m| m.path.ends_with(".jpg")));
+        assert!(!result.media_files.iter().any(|m| m.path.ends_with(".mp4")));
+        assert!(!result.media_files.iter().any(|m| m.path.ends_with(".mov")));
+    }
+
+    #[test]
+    fn test_scan_folder_with_multiple_formats() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+        
+        // Create various image files
+        let mut jpg = fs::File::create(base_path.join("image1.jpg")).unwrap();
+        jpg.write_all(b"fake image data").unwrap();
+        
+        let mut jpeg = fs::File::create(base_path.join("image2.jpeg")).unwrap();
+        jpeg.write_all(b"fake image data").unwrap();
+        
+        let mut png = fs::File::create(base_path.join("image3.png")).unwrap();
+        png.write_all(b"fake image data").unwrap();
+        
+        let mut heic = fs::File::create(base_path.join("image4.heic")).unwrap();
+        heic.write_all(b"fake image data").unwrap();
+        
+        // Create various video files
+        let mut mp4 = fs::File::create(base_path.join("video1.mp4")).unwrap();
+        mp4.write_all(b"fake video data").unwrap();
+        
+        let mut mov = fs::File::create(base_path.join("video2.mov")).unwrap();
+        mov.write_all(b"fake video data").unwrap();
+        
+        let mut avi = fs::File::create(base_path.join("video3.avi")).unwrap();
+        avi.write_all(b"fake video data").unwrap();
+        
+        // Config with multiple formats for each type
+        let config = FormatConfig {
+            image_formats: vec!["jpg".to_string(), "jpeg".to_string(), "png".to_string()],
+            video_formats: vec!["mp4".to_string(), "mov".to_string()],
+        };
+        
+        let result = scan_folder(base_path.to_str().unwrap(), Some(config)).unwrap();
+        
+        // Should find 3 images and 2 videos (heic and avi excluded)
+        assert_eq!(result.total_count, 5);
+        assert_eq!(result.image_count, 3);
+        assert_eq!(result.video_count, 2);
+        
+        // Verify included formats
+        assert!(result.media_files.iter().any(|m| m.path.ends_with(".jpg")));
+        assert!(result.media_files.iter().any(|m| m.path.ends_with(".jpeg")));
+        assert!(result.media_files.iter().any(|m| m.path.ends_with(".png")));
+        assert!(result.media_files.iter().any(|m| m.path.ends_with(".mp4")));
+        assert!(result.media_files.iter().any(|m| m.path.ends_with(".mov")));
+        
+        // Verify excluded formats
+        assert!(!result.media_files.iter().any(|m| m.path.ends_with(".heic")));
+        assert!(!result.media_files.iter().any(|m| m.path.ends_with(".avi")));
+    }
+
+    #[test]
+    fn test_scan_folder_case_insensitive_extensions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+        
+        // Create files with uppercase extensions
+        let mut jpg_upper = fs::File::create(base_path.join("image1.JPG")).unwrap();
+        jpg_upper.write_all(b"fake image data").unwrap();
+        
+        let mut mp4_upper = fs::File::create(base_path.join("video1.MP4")).unwrap();
+        mp4_upper.write_all(b"fake video data").unwrap();
+        
+        // Create files with mixed case extensions
+        let mut png_mixed = fs::File::create(base_path.join("image2.PnG")).unwrap();
+        png_mixed.write_all(b"fake image data").unwrap();
+        
+        let mut mov_mixed = fs::File::create(base_path.join("video2.MoV")).unwrap();
+        mov_mixed.write_all(b"fake video data").unwrap();
+        
+        // Config with lowercase formats
+        let config = FormatConfig {
+            image_formats: vec!["jpg".to_string(), "png".to_string()],
+            video_formats: vec!["mp4".to_string(), "mov".to_string()],
+        };
+        
+        let result = scan_folder(base_path.to_str().unwrap(), Some(config)).unwrap();
+        
+        // Should find all files regardless of case
+        assert_eq!(result.total_count, 4);
+        assert_eq!(result.image_count, 2);
+        assert_eq!(result.video_count, 2);
+    }
+
+    #[test]
+    fn test_scan_folder_with_nested_directories_and_custom_config() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path();
+        
+        // Create nested directory structure
+        fs::create_dir_all(base_path.join("subdir1")).unwrap();
+        fs::create_dir_all(base_path.join("subdir2/nested")).unwrap();
+        
+        // Create files in different directories
+        let mut jpg1 = fs::File::create(base_path.join("image1.jpg")).unwrap();
+        jpg1.write_all(b"fake image data").unwrap();
+        
+        let mut png1 = fs::File::create(base_path.join("image2.png")).unwrap();
+        png1.write_all(b"fake image data").unwrap();
+        
+        let mut jpg2 = fs::File::create(base_path.join("subdir1/image3.jpg")).unwrap();
+        jpg2.write_all(b"fake image data").unwrap();
+        
+        let mut png2 = fs::File::create(base_path.join("subdir2/image4.png")).unwrap();
+        png2.write_all(b"fake image data").unwrap();
+        
+        let mut jpg3 = fs::File::create(base_path.join("subdir2/nested/image5.jpg")).unwrap();
+        jpg3.write_all(b"fake image data").unwrap();
+        
+        let mut mp4 = fs::File::create(base_path.join("subdir1/video1.mp4")).unwrap();
+        mp4.write_all(b"fake video data").unwrap();
+        
+        // Config: only jpg images, no videos
+        let config = FormatConfig {
+            image_formats: vec!["jpg".to_string()],
+            video_formats: vec![],
+        };
+        
+        let result = scan_folder(base_path.to_str().unwrap(), Some(config)).unwrap();
+        
+        // Should find 3 jpg files across all directories, no png or mp4
+        assert_eq!(result.total_count, 3);
+        assert_eq!(result.image_count, 3);
+        assert_eq!(result.video_count, 0);
+        
+        // Verify all found files are jpg
+        for media_file in &result.media_files {
+            assert!(media_file.path.ends_with(".jpg"));
+            assert_eq!(media_file.media_type, MediaType::Image);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -523,6 +721,41 @@ mod property_tests {
                     "Should not include non-image files"
                 );
             }
+        }
+
+        // Feature: cura-photo-manager, Property 26: Video Format Support
+        // Validates: Requirements 1.4 (extended)
+        #[test]
+        fn property_video_format_support(
+            format in prop::sample::select(vec!["mp4".to_string(), "mov".to_string(), "avi".to_string(), "mkv".to_string()])
+        ) {
+            // Create temporary directory
+            let temp_dir = tempfile::tempdir().unwrap();
+            let base_path = temp_dir.path();
+
+            // Create a test video file with the selected format
+            let file_name = format!("test_video.{}", format);
+            let file_path = base_path.join(&file_name);
+            let mut f = fs::File::create(&file_path).unwrap();
+            f.write_all(b"fake video data").unwrap();
+
+            // Scan the directory with default config (includes all video formats)
+            let result = scan_folder(base_path.to_str().unwrap(), None).unwrap();
+
+            // Verify the video file was discovered without errors
+            prop_assert_eq!(result.total_count, 1, "Should find exactly one video");
+            prop_assert_eq!(result.media_files.len(), 1, "Should return exactly one video");
+            prop_assert_eq!(result.image_count, 0, "Should have no images");
+            prop_assert_eq!(result.video_count, 1, "Should have one video");
+            prop_assert!(result.errors.is_empty(), "Should have no errors for supported video format");
+            
+            // Verify the returned path matches our file
+            let returned_media = &result.media_files[0];
+            prop_assert!(
+                returned_media.path.ends_with(&file_name),
+                "Returned path should end with the file name"
+            );
+            prop_assert_eq!(returned_media.media_type, MediaType::Video, "Media type should be Video");
         }
     }
 }
