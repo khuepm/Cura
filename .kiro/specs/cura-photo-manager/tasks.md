@@ -691,7 +691,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 9.1, 9.2 (extended)_
 
 - [ ] 26. Update settings page for format configuration
-  - [-] 26.1 Add format configuration section to settings
+  - [x] 26.1 Add format configuration section to settings
     - Integrate FormatSelection component into settings page
     - Load current format configuration on page load
     - Save format configuration changes
