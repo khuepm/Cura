@@ -605,7 +605,7 @@ This implementation plan breaks down the Cura media management application into 
     - Test with videos shorter than 5 seconds
     - Verify thumbnail is extracted from first frame
   
-  - [-] 22.5 Write unit test for FFmpeg error handling
+  - [x] 22.5 Write unit test for FFmpeg error handling
     - Test with corrupt video files
     - Test with videos without video streams (audio only)
     - Test with unsupported codecs
@@ -615,7 +615,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 3.5 (extended)_
 
 - [ ] 23. Implement video metadata extraction
-  - [~] 23.1 Create video metadata extractor
+  - [-] 23.1 Create video metadata extractor
     - Extend extract_metadata command to handle video files
     - Use FFmpeg to extract video metadata (duration, codec, dimensions)
     - Extract file system metadata (size, modified date)

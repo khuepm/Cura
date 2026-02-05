@@ -62,6 +62,24 @@ fn extract_metadata(image_path: String) -> Result<metadata::ImageMetadata, Strin
     }
 }
 
+/// Tauri command to extract metadata from a video file
+#[tauri::command]
+fn extract_video_metadata(video_path: String) -> Result<metadata::ImageMetadata, String> {
+    logging::log_debug("metadata", &format!("Extracting video metadata from: {}", video_path));
+    
+    match metadata::extract_video_metadata(&video_path) {
+        Ok(metadata) => {
+            logging::log_debug("metadata", &format!("Video metadata extracted successfully for: {}", video_path));
+            Ok(metadata)
+        }
+        Err(e) => {
+            let io_error = std::io::Error::new(std::io::ErrorKind::Other, e.clone());
+            logging::log_error("metadata", &format!("Failed to extract video metadata from: {}", video_path), &io_error);
+            Err(logging::user_friendly_error(&io_error))
+        }
+    }
+}
+
 /// Tauri command to generate thumbnails for an image
 #[tauri::command]
 fn generate_thumbnails(
@@ -499,7 +517,8 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .invoke_handler(tauri::generate_handler![
       scan_folder, 
-      extract_metadata, 
+      extract_metadata,
+      extract_video_metadata,
       generate_thumbnails,
       generate_video_thumbnails,
       save_tags,

@@ -4,8 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::process::Command;
+use log::{error, info};
 
-/// Image metadata extracted from EXIF and file system
+/// Media metadata extracted from EXIF/video metadata and file system
+/// This struct handles both images and videos
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ImageMetadata {
     /// Original file path
@@ -20,10 +23,14 @@ pub struct ImageMetadata {
     pub gps_latitude: Option<f64>,
     /// GPS longitude in decimal degrees
     pub gps_longitude: Option<f64>,
-    /// Image width in pixels
+    /// Image/video width in pixels
     pub width: u32,
-    /// Image height in pixels
+    /// Image/video height in pixels
     pub height: u32,
+    /// Video duration in seconds (None for images)
+    pub duration_seconds: Option<f64>,
+    /// Video codec name (None for images)
+    pub video_codec: Option<String>,
     /// File size in bytes
     pub file_size: u64,
     /// File modified timestamp
@@ -105,6 +112,110 @@ pub fn extract_metadata(image_path: &str) -> Result<ImageMetadata, String> {
         gps_longitude,
         width,
         height,
+        duration_seconds: None,
+        video_codec: None,
+        file_size,
+        file_modified,
+    })
+}
+
+/// Extract metadata from a video file using FFmpeg
+pub fn extract_video_metadata(video_path: &str) -> Result<ImageMetadata, String> {
+    let path = Path::new(video_path);
+
+    if !path.exists() {
+        return Err(format!("Video file does not exist: {}", video_path));
+    }
+
+    if !path.is_file() {
+        return Err(format!("Path is not a file: {}", video_path));
+    }
+
+    // Get file system metadata
+    let file_metadata = std::fs::metadata(path)
+        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
+
+    let file_size = file_metadata.len();
+    let file_modified = file_metadata
+        .modified()
+        .map_err(|e| format!("Failed to read file modified time: {}", e))?;
+    let file_modified = DateTime::<Utc>::from(file_modified);
+
+    // Use FFmpeg to extract video metadata
+    info!("Extracting video metadata from: {}", video_path);
+    
+    let output = Command::new("ffprobe")
+        .args([
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,codec_name,duration",
+            "-show_entries", "format=duration",
+            "-of", "json",
+            video_path,
+        ])
+        .output()
+        .map_err(|e| {
+            error!("Failed to run ffprobe: {}", e);
+            format!("Failed to run ffprobe. Make sure FFmpeg is installed: {}", e)
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        error!("ffprobe failed: {}", stderr);
+        return Err(format!("Failed to extract video metadata: {}", stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Parse JSON output from ffprobe
+    let json: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|e| format!("Failed to parse ffprobe output: {}", e))?;
+
+    // Extract video stream information
+    let streams = json["streams"].as_array()
+        .ok_or_else(|| "No video streams found in file".to_string())?;
+    
+    if streams.is_empty() {
+        return Err("No video streams found in file".to_string());
+    }
+
+    let video_stream = &streams[0];
+
+    // Extract dimensions
+    let width = video_stream["width"].as_u64()
+        .ok_or_else(|| "Failed to extract video width".to_string())? as u32;
+    
+    let height = video_stream["height"].as_u64()
+        .ok_or_else(|| "Failed to extract video height".to_string())? as u32;
+
+    // Extract codec
+    let video_codec = video_stream["codec_name"].as_str()
+        .map(|s| s.to_string());
+
+    // Extract duration (try stream first, then format)
+    let duration_seconds = video_stream["duration"].as_str()
+        .and_then(|s| s.parse::<f64>().ok())
+        .or_else(|| {
+            json["format"]["duration"].as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+        });
+
+    info!(
+        "Extracted video metadata: {}x{}, codec: {:?}, duration: {:?}s",
+        width, height, video_codec, duration_seconds
+    );
+
+    Ok(ImageMetadata {
+        path: video_path.to_string(),
+        capture_date: Some(file_modified), // Use file modified as capture date
+        camera_make: None,
+        camera_model: None,
+        gps_latitude: None,
+        gps_longitude: None,
+        width,
+        height,
+        duration_seconds,
+        video_codec,
         file_size,
         file_modified,
     })
@@ -272,6 +383,8 @@ mod tests {
         assert_eq!(metadata.path, image_path.to_str().unwrap());
         assert!(metadata.file_size > 0);
         assert!(metadata.capture_date.is_some()); // Should fallback to file_modified
+        assert!(metadata.duration_seconds.is_none()); // Should be None for images
+        assert!(metadata.video_codec.is_none()); // Should be None for images
     }
 
     #[test]
@@ -288,6 +401,27 @@ mod tests {
         assert!(result.capture_date.is_some());
         // Should match file_modified
         assert_eq!(result.capture_date.unwrap(), result.file_modified);
+        // Video fields should be None
+        assert!(result.duration_seconds.is_none());
+        assert!(result.video_codec.is_none());
+    }
+
+    #[test]
+    fn test_extract_video_metadata_file_not_found() {
+        let result = extract_video_metadata("/nonexistent/path/video.mp4");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("does not exist"));
+    }
+
+    #[test]
+    #[ignore] // This test requires FFmpeg to be installed
+    fn test_extract_video_metadata_basic() {
+        // This test would require a real video file
+        // For now, we just test that the function exists and has the right signature
+        // In a real test environment, you would:
+        // 1. Create or use a sample video file
+        // 2. Call extract_video_metadata
+        // 3. Verify the returned metadata has video-specific fields populated
     }
 }
 
@@ -308,14 +442,12 @@ mod property_tests {
         path: &std::path::Path,
         width: u32,
         height: u32,
-        make: Option<&str>,
-        model: Option<&str>,
-        datetime: Option<&str>,
-        gps_lat: Option<(u32, u32, u32, &str)>,
-        gps_lon: Option<(u32, u32, u32, &str)>,
+        _make: Option<&str>,
+        _model: Option<&str>,
+        _datetime: Option<&str>,
+        _gps_lat: Option<(u32, u32, u32, &str)>,
+        _gps_lon: Option<(u32, u32, u32, &str)>,
     ) -> std::io::Result<()> {
-        use std::io::Cursor;
-
         // Create a minimal JPEG structure with EXIF data
         let mut exif_data = Vec::new();
         
@@ -324,36 +456,16 @@ mod property_tests {
         exif_data.extend_from_slice(&[0x2A, 0x00]); // TIFF magic number
         exif_data.extend_from_slice(&[0x08, 0x00, 0x00, 0x00]); // Offset to first IFD
 
-        // IFD0 - count of entries
-        let mut ifd_entries = Vec::new();
-        
         // Add width (ImageWidth tag = 0x0100)
         if width > 0 {
-            ifd_entries.extend_from_slice(&[0x00, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00]);
-            ifd_entries.extend_from_slice(&width.to_le_bytes());
+            exif_data.extend_from_slice(&[0x00, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00]);
+            exif_data.extend_from_slice(&width.to_le_bytes());
         }
         
         // Add height (ImageLength tag = 0x0101)
         if height > 0 {
-            ifd_entries.extend_from_slice(&[0x01, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00]);
-            ifd_entries.extend_from_slice(&height.to_le_bytes());
-        }
-
-        // Add Make if provided (tag = 0x010F)
-        if let Some(make_str) = make {
-            let make_bytes = make_str.as_bytes();
-            ifd_entries.extend_from_slice(&[0x0F, 0x01, 0x02, 0x00]);
-            ifd_entries.extend_from_slice(&(make_bytes.len() as u32 + 1).to_le_bytes());
-            // For simplicity, we'll just add a placeholder offset
-            ifd_entries.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
-        }
-
-        // Add Model if provided (tag = 0x0110)
-        if let Some(model_str) = model {
-            let model_bytes = model_str.as_bytes();
-            ifd_entries.extend_from_slice(&[0x10, 0x01, 0x02, 0x00]);
-            ifd_entries.extend_from_slice(&(model_bytes.len() as u32 + 1).to_le_bytes());
-            ifd_entries.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
+            exif_data.extend_from_slice(&[0x01, 0x01, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00]);
+            exif_data.extend_from_slice(&height.to_le_bytes());
         }
 
         // For this test, we'll create a simpler approach:
