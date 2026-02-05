@@ -65,10 +65,16 @@ export interface SyncConfig {
   excludePatterns: string[];
 }
 
+export interface FormatConfig {
+  imageFormats: string[];
+  videoFormats: string[];
+}
+
 export interface AppSettings {
   thumbnailCachePath: string;
   aiModel: 'clip' | 'mobilenet';
   syncConfig: SyncConfig;
+  formatConfig?: FormatConfig;
 }
 
 export interface ScanProgress {

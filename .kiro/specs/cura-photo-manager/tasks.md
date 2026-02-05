@@ -508,7 +508,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 6.3_
 
 - [ ] 20. Implement format configuration system
-  - [-] 20.1 Create format configuration module (Rust backend)
+  - [x] 20.1 Create format configuration module (Rust backend)
     - Implement get_format_config Tauri command
     - Implement set_format_config Tauri command
     - Implement get_default_formats Tauri command
@@ -519,7 +519,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 12.1, 12.2, 12.5 (extended)_
   
-  - [~] 20.2 Create format selection UI component (Next.js frontend)
+  - [-] 20.2 Create format selection UI component (Next.js frontend)
     - Create FormatSelection component with checkboxes for each format
     - Add "Select All" / "Deselect All" buttons for image and video sections
     - Display format counts (e.g., "12 of 15 image formats selected")

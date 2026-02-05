@@ -36,6 +36,10 @@ export function useSettings(): UseSettingsReturn {
           uploadQuality: (result as any).sync_config?.upload_quality || 'high',
           excludePatterns: (result as any).sync_config?.exclude_patterns || [],
         },
+        formatConfig: {
+          imageFormats: (result as any).format_config?.image_formats || [],
+          videoFormats: (result as any).format_config?.video_formats || [],
+        },
       };
       
       setSettings(formattedSettings);
@@ -62,6 +66,10 @@ export function useSettings(): UseSettingsReturn {
           sync_interval: newSettings.syncConfig.syncInterval,
           upload_quality: newSettings.syncConfig.uploadQuality,
           exclude_patterns: newSettings.syncConfig.excludePatterns,
+        },
+        format_config: {
+          image_formats: newSettings.formatConfig?.imageFormats || [],
+          video_formats: newSettings.formatConfig?.videoFormats || [],
         },
       };
       
