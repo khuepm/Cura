@@ -2,10 +2,16 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PhotoDetail, { PhotoDetailData } from "../PhotoDetail";
 
+// Mock Tauri API
+vi.mock("@tauri-apps/api/core", () => ({
+  convertFileSrc: (path: string) => `asset://localhost/${path}`,
+}));
+
 describe("PhotoDetail", () => {
   const mockPhoto: PhotoDetailData = {
     id: 1,
     path: "/path/to/photo.jpg",
+    mediaType: "image",
     thumbnailMedium: "/thumb.jpg",
     metadata: {
       captureDate: "2024-01-15T10:30:00Z",
@@ -28,12 +34,42 @@ describe("PhotoDetail", () => {
     ],
   };
 
+  const mockVideo: PhotoDetailData = {
+    id: 2,
+    path: "/path/to/video.mp4",
+    mediaType: "video",
+    thumbnailMedium: "/video-thumb.jpg",
+    metadata: {
+      dimensions: {
+        width: 1920,
+        height: 1080,
+      },
+      durationSeconds: 125.5,
+      videoCodec: "h264",
+      fileSize: 52428800,
+      fileModified: "2024-01-20T14:30:00Z",
+    },
+    tags: [],
+  };
+
   it("renders photo metadata correctly", () => {
     render(<PhotoDetail photo={mockPhoto} />);
 
     expect(screen.getByText("Photo Information")).toBeInTheDocument();
+    expect(screen.getByText("Image")).toBeInTheDocument();
     expect(screen.getByText("4096 × 2731")).toBeInTheDocument();
     expect(screen.getByText("5.0 MB")).toBeInTheDocument();
+  });
+
+  it("renders video metadata correctly", () => {
+    render(<PhotoDetail photo={mockVideo} />);
+
+    expect(screen.getByText("Video Information")).toBeInTheDocument();
+    expect(screen.getByText("Video")).toBeInTheDocument();
+    expect(screen.getByText("1920 × 1080")).toBeInTheDocument();
+    expect(screen.getByText("50.0 MB")).toBeInTheDocument();
+    expect(screen.getByText("2:05")).toBeInTheDocument(); // Duration formatted
+    expect(screen.getByText("h264")).toBeInTheDocument(); // Codec
   });
 
   it("renders camera information when available", () => {
@@ -86,5 +122,26 @@ describe("PhotoDetail", () => {
 
     render(<PhotoDetail photo={photoWithoutGPS} />);
     expect(screen.queryByText("Location")).not.toBeInTheDocument();
+  });
+
+  it("renders video player for video media type", () => {
+    const { container } = render(<PhotoDetail photo={mockVideo} />);
+
+    const videoElement = container.querySelector("video");
+    expect(videoElement).toBeInTheDocument();
+    expect(videoElement).toHaveAttribute("controls");
+  });
+
+  it("formats duration correctly for videos over an hour", () => {
+    const longVideo = {
+      ...mockVideo,
+      metadata: {
+        ...mockVideo.metadata,
+        durationSeconds: 3665, // 1:01:05
+      },
+    };
+
+    render(<PhotoDetail photo={longVideo} />);
+    expect(screen.getByText("1:01:05")).toBeInTheDocument();
   });
 });

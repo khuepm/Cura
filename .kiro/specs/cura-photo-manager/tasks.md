@@ -660,14 +660,14 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 6.1 (extended)_
 
 - [ ] 25. Update frontend UI for video support
-  - [-] 25.1 Update photo grid to show video indicators
+  - [x] 25.1 Update photo grid to show video indicators
     - Add video icon overlay to video thumbnails
     - Add media type filter dropdown (All, Images, Videos)
     - Update grid rendering to handle both images and videos
     - create github commit for this task then push to github
     - _Requirements: 9.1 (extended)_
   
-  - [~] 25.2 Update detail view for video playback
+  - [-] 25.2 Update detail view for video playback
     - Add video player component with controls (play, pause, seek)
     - Show video-specific metadata (duration, codec)
     - Handle video loading and buffering states
