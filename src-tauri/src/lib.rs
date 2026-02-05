@@ -2,6 +2,7 @@ mod auth;
 mod database;
 mod logging;
 mod metadata;
+mod migrations;
 mod performance;
 mod scanner;
 mod settings;

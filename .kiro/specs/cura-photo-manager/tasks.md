@@ -2,7 +2,9 @@
 
 ## Overview
 
-This implementation plan breaks down the Cura photo management application into discrete coding tasks. The approach follows an incremental strategy: establish core infrastructure first, then build backend image processing capabilities, followed by frontend UI and AI features, and finally cloud synchronization. Each major component includes property-based tests to validate correctness properties from the design document.
+This implementation plan breaks down the Cura media management application into discrete coding tasks. The approach follows an incremental strategy: establish core infrastructure first, then build backend image processing capabilities, followed by frontend UI and AI features, cloud synchronization, and finally video support. Each major component includes property-based tests to validate correctness properties from the design document.
+
+**Video Support Extension**: Tasks 19-32 add comprehensive video support including FFmpeg integration for thumbnail extraction, format configuration UI, database schema migration, video metadata extraction, and video playback in the UI. This extension builds on the existing image processing infrastructure.
 
 ## Tasks
 
@@ -13,6 +15,7 @@ This implementation plan breaks down the Cura photo management application into 
   - Install core dependencies: image, kamadak-exif, rayon, walkdir for Rust; @xenova/transformers, react-window for Next.js
   - Configure Tauri allowlist for filesystem access and IPC commands
   - Set up testing frameworks: proptest for Rust, fast-check for TypeScript
+    - create github commit for this task then push to github
   - _Requirements: 1.1, 6.3, 12.5_
 
 - [x] 2. Implement image scanning and discovery (Rust backend)
@@ -485,12 +488,315 @@ This implementation plan breaks down the Cura photo management application into 
     - Test installation on clean systems
     - _Requirements: All_
 
+- [ ] 19. Add video support - Database migration
+  - [-] 19.1 Create database migration for video support
+    - Add migration script to add media_type column (default 'image')
+    - Add migration script to add duration_seconds column (nullable)
+    - Add migration script to add video_codec column (nullable)
+    - Add index on media_type column
+    - Test migration on existing database with data
+    - Ensure backward compatibility with existing image records
+    - create github commit for this task then push to github
+    - _Requirements: 1.4 (extended), 2.1 (extended)_
+  
+  - [~] 19.2 Write unit test for database migration
+    - Test migration on database with existing image records
+    - Verify all existing records have media_type='image'
+    - Verify new columns are added correctly
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 6.3_
+
+- [ ] 20. Implement format configuration system
+  - [~] 20.1 Create format configuration module (Rust backend)
+    - Implement get_format_config Tauri command
+    - Implement set_format_config Tauri command
+    - Implement get_default_formats Tauri command
+    - Define default image formats: jpg, jpeg, png, heic, raw, cr2, nef, dng, arw, webp, gif, bmp, tiff
+    - Define default video formats: mp4, mov, avi, mkv, webm, flv, wmv, m4v, mpg, mpeg, 3gp
+    - Store format configuration in settings file
+    - Validate format strings (lowercase, no dots)
+    - create github commit for this task then push to github
+    - _Requirements: 12.1, 12.2, 12.5 (extended)_
+  
+  - [~] 20.2 Create format selection UI component (Next.js frontend)
+    - Create FormatSelection component with checkboxes for each format
+    - Add "Select All" / "Deselect All" buttons for image and video sections
+    - Display format counts (e.g., "12 of 15 image formats selected")
+    - Show file extension examples for each format
+    - Integrate with settings page
+    - Call set_format_config Tauri command on changes
+    - create github commit for this task then push to github
+    - _Requirements: 12.1_
+  
+  - [~] 20.3 Write property test for format configuration persistence
+    - **Property 29: Format Configuration Persistence**
+    - **Validates: Requirements 12.2, 12.3 (extended)**
+    - Generate random format configuration changes
+    - Save configuration and restart application
+    - Verify changed format selections are preserved
+  
+  - [~] 20.4 Write property test for default format configuration
+    - **Property 32: Default Format Configuration**
+    - **Validates: Requirements 12.5 (extended)**
+    - Test first-time application startup
+    - Verify default configuration includes all common formats
+  
+  - [~] 20.5 Write unit test for format validation
+    - Test with invalid format strings (uppercase, with dots, special characters)
+    - Verify validation rejects invalid inputs
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 12.4_
+
+- [ ] 21. Update media scanner for video support
+  - [~] 21.1 Extend scanner to handle video files
+    - Update scan_folder command to accept FormatConfig parameter
+    - Add video format filtering based on configuration
+    - Determine media type (image/video) based on file extension
+    - Return MediaFile struct with path and media_type
+    - Update progress events to show both image and video counts
+    - create github commit for this task then push to github
+    - _Requirements: 1.2, 1.4 (extended)_
+  
+  - [~] 21.2 Write property test for video format support
+    - **Property 26: Video Format Support**
+    - **Validates: Requirements 1.4 (extended)**
+    - Test with sample videos in MP4, MOV, AVI, MKV formats
+    - Verify each format is successfully discovered
+  
+  - [~] 21.3 Write unit test for format configuration filtering
+    - Test scanner with custom format configuration
+    - Verify only configured formats are discovered
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 1.4 (extended)_
+
+- [ ] 22. Implement video thumbnail extraction
+  - [~] 22.1 Set up FFmpeg integration
+    - Add ffmpeg-next or ffmpeg-sidecar crate dependency
+    - Implement FFmpeg availability check on startup
+    - Display error message if FFmpeg not found
+    - Add FFmpeg installation instructions to documentation
+    - create github commit for this task then push to github
+    - _Requirements: 3.1 (extended)_
+  
+  - [~] 22.2 Create video thumbnail extractor module
+    - Implement generate_video_thumbnails Tauri command
+    - Extract frame at 5 seconds using FFmpeg: `ffmpeg -ss 5 -i {video_path} -vframes 1 -f image2pipe -`
+    - Handle videos shorter than 5 seconds by extracting first frame
+    - Decode extracted frame using image crate
+    - Generate two thumbnail sizes: 150px and 600px width
+    - Use Lanczos3 filter for downsampling
+    - Cache thumbnails in AppData directory with checksum-based naming
+    - Skip regeneration if thumbnail exists and source unchanged
+    - create github commit for this task then push to github
+    - _Requirements: 3.1 (extended), 3.3, 3.4_
+  
+  - [~] 22.3 Write property test for video thumbnail extraction at 5 seconds
+    - **Property 27: Video Thumbnail Extraction at 5 Seconds**
+    - **Validates: Requirements 3.1 (extended)**
+    - Test with videos longer than 5 seconds
+    - Verify thumbnail is extracted from frame at 5 seconds
+  
+  - [~] 22.4 Write property test for short video thumbnail extraction
+    - **Property 28: Video Thumbnail Extraction for Short Videos**
+    - **Validates: Requirements 3.1 (extended)**
+    - Test with videos shorter than 5 seconds
+    - Verify thumbnail is extracted from first frame
+  
+  - [~] 22.5 Write unit test for FFmpeg error handling
+    - Test with corrupt video files
+    - Test with videos without video streams (audio only)
+    - Test with unsupported codecs
+    - Verify errors are logged and placeholder is used
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 3.5 (extended)_
+
+- [ ] 23. Implement video metadata extraction
+  - [~] 23.1 Create video metadata extractor
+    - Extend extract_metadata command to handle video files
+    - Use FFmpeg to extract video metadata (duration, codec, dimensions)
+    - Extract file system metadata (size, modified date)
+    - Return MediaMetadata struct with video-specific fields
+    - create github commit for this task then push to github
+    - _Requirements: 2.1 (extended)_
+  
+  - [~] 23.2 Write property test for video metadata extraction
+    - **Property 31: Video Metadata Extraction**
+    - **Validates: Requirements 2.1 (extended)**
+    - Test with various video files
+    - Verify metadata includes duration, codec, dimensions, file size
+  
+  - [~] 23.3 Write unit test for video metadata fallback
+    - Test videos with missing metadata
+    - Verify fallback to file system timestamps
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 2.2 (extended)_
+
+- [ ] 24. Update database operations for video support
+  - [~] 24.1 Extend database functions for media type
+    - Update insert_image function to accept media_type parameter
+    - Update insert_image function to accept video metadata (duration, codec)
+    - Update query functions to support media_type filtering
+    - Add media_type to all database queries and results
+    - create github commit for this task then push to github
+    - _Requirements: 6.1, 6.2 (extended)_
+  
+  - [~] 24.2 Write property test for media type filtering
+    - **Property 30: Media Type Filtering**
+    - **Validates: Requirements 6.2 (extended)**
+    - Insert mix of images and videos
+    - Test filtering by media_type (image, video, all)
+    - Verify only matching media types are returned
+  
+  - [~] 24.3 Write unit test for video record insertion
+    - Test inserting video records with all metadata fields
+    - Verify video-specific fields are stored correctly
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 6.1 (extended)_
+
+- [ ] 25. Update frontend UI for video support
+  - [~] 25.1 Update photo grid to show video indicators
+    - Add video icon overlay to video thumbnails
+    - Add media type filter dropdown (All, Images, Videos)
+    - Update grid rendering to handle both images and videos
+    - create github commit for this task then push to github
+    - _Requirements: 9.1 (extended)_
+  
+  - [~] 25.2 Update detail view for video playback
+    - Add video player component with controls (play, pause, seek)
+    - Show video-specific metadata (duration, codec)
+    - Handle video loading and buffering states
+    - Fallback to thumbnail if video cannot be played
+    - create github commit for this task then push to github
+    - _Requirements: 9.2 (extended)_
+  
+  - [~] 25.3 Update search interface for media type filtering
+    - Add media type filter chip (All, Images, Videos)
+    - Update search query to include media_type parameter
+    - Display media type in search results
+    - create github commit for this task then push to github
+    - _Requirements: 5.1 (extended)_
+  
+  - [~] 25.4 Write unit test for video UI components
+    - Test video grid rendering with video indicators
+    - Test video detail view with player controls
+    - Test media type filtering in search
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 9.1, 9.2 (extended)_
+
+- [ ] 26. Update settings page for format configuration
+  - [~] 26.1 Add format configuration section to settings
+    - Integrate FormatSelection component into settings page
+    - Load current format configuration on page load
+    - Save format configuration changes
+    - Display success/error messages
+    - create github commit for this task then push to github
+    - _Requirements: 12.1_
+  
+  - [~] 26.2 Write unit test for settings format configuration
+    - Test loading format configuration
+    - Test saving format configuration changes
+    - Test validation of format selections
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 12.1, 12.4_
+
+- [ ] 27. Update media import flow for videos
+  - [~] 27.1 Integrate video processing into import pipeline
+    - Update folder import flow to process both images and videos
+    - Call generate_video_thumbnails for video files
+    - Call extract_metadata for video files
+    - Store video records in database with media_type='video'
+    - Display progress for both images and videos
+    - create github commit for this task then push to github
+    - _Requirements: 1.2, 1.5 (extended)_
+  
+  - [~] 27.2 Write integration test for mixed media import
+    - Test importing folder with both images and videos
+    - Verify all media files are processed correctly
+    - Verify thumbnails are generated for both types
+    - Verify metadata is extracted for both types
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 1.2, 1.5 (extended)_
+
+- [ ] 28. Checkpoint - Ensure video support works end-to-end
+  - Test complete video import flow
+  - Test video thumbnail generation
+  - Test video playback in detail view
+  - Test format configuration
+  - Test media type filtering
+  - Ensure all tests pass, ask the user if questions arise.
+  - create github commit for this task then push to github
+
+- [ ] 29. Update cloud sync for video support
+  - [~] 29.1 Extend sync to handle video files
+    - Update sync_to_drive to handle video files
+    - Compute checksums for video files
+    - Upload videos to Google Drive
+    - Update sync status for video records
+    - create github commit for this task then push to github
+    - _Requirements: 8.1, 8.2, 8.3 (extended)_
+  
+  - [~] 29.2 Write unit test for video file uploads
+    - Test uploading video files to Drive
+    - Test checksum-based deduplication for videos
+    - create github commit for this task then push to github
+    - create github commit for this task then push to github
+    - _Requirements: 8.1 (extended)_
+
+- [ ] 30. Performance optimization for video support
+  - [~] 30.1 Optimize video thumbnail extraction
+    - Profile FFmpeg performance with various codecs
+    - Implement thumbnail extraction caching
+    - Optimize parallel processing for mixed media
+    - create github commit for this task then push to github
+    - _Requirements: 10.1, 10.2 (extended)_
+  
+  - [~] 30.2 Write performance tests for video processing
+    - Benchmark video thumbnail extraction throughput
+    - Test with various video codecs and sizes
+    - Verify performance targets are met
+    - create github commit for this task then push to github
+    - _Requirements: 10.1, 10.2 (extended)_
+
+- [ ] 31. Final integration and testing for video support
+  - [~] 31.1 Comprehensive end-to-end testing
+    - Test all video support features together
+    - Test edge cases (short videos, corrupt videos, unsupported codecs)
+    - Test format configuration with various combinations
+    - Test media type filtering across all features
+    - create github commit for this task then push to github
+    - _Requirements: All (extended)_
+  
+  - [~] 31.2 Update documentation for video support
+    - Document FFmpeg installation requirements
+    - Document supported video formats
+    - Document format configuration feature
+    - Update user guide with video features
+    - create github commit for this task then push to github
+    - _Requirements: All (extended)_
+
+- [ ] 32. Final checkpoint - Video support complete
+  - Run all unit tests and property tests
+  - Run integration tests for video features
+  - Verify all video requirements are met
+  - Ensure all tests pass, ask the user if questions arise.
+
 ## Notes
 
-- All tasks are required for comprehensive implementation
+- All tasks are required for comprehensive implementation including video support
 - Each task references specific requirements for traceability
 - Checkpoints ensure incremental validation at major milestones
 - Property tests validate universal correctness properties with minimum 100 iterations
 - Unit tests validate specific examples, edge cases, and error conditions
 - Backend uses Rust with proptest for property-based testing
 - Frontend uses TypeScript/Next.js with fast-check for property-based testing
+- Video support requires FFmpeg to be installed on the system
+- Tasks 19-32 add comprehensive video support on top of existing image functionality

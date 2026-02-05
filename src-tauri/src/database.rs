@@ -4,11 +4,38 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-/// Image record stored in database
+use crate::migrations;
+
+/// Media type enum
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaType {
+    Image,
+    Video,
+}
+
+impl MediaType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            MediaType::Image => "image",
+            MediaType::Video => "video",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "video" => MediaType::Video,
+            _ => MediaType::Image,
+        }
+    }
+}
+
+/// Image record stored in database (also handles video records)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ImageRecord {
     pub id: i64,
     pub path: String,
+    pub media_type: MediaType,
     pub thumbnail_small: String,
     pub thumbnail_medium: String,
     pub checksum: String,
@@ -19,6 +46,8 @@ pub struct ImageRecord {
     pub gps_longitude: Option<f64>,
     pub width: u32,
     pub height: u32,
+    pub duration_seconds: Option<f64>,
+    pub video_codec: Option<String>,
     pub file_size: u64,
     pub file_modified: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
@@ -50,113 +79,27 @@ pub struct Database {
 }
 
 impl Database {
-    /// Initialize database connection and create schema if needed
+    /// Initialize database connection and run migrations
     pub fn new(db_path: PathBuf) -> Result<Self> {
         let conn = Connection::open(db_path)?;
         
         // Enable foreign key constraints
         conn.execute("PRAGMA foreign_keys = ON", [])?;
         
-        let db = Database { conn: Mutex::new(conn) };
-        db.initialize_schema()?;
-        Ok(db)
-    }
-
-    /// Create all tables and indexes
-    fn initialize_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        // Run migrations to ensure schema is up to date
+        migrations::run_migrations(&conn)?;
         
-        // Create images table
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS images (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                path TEXT NOT NULL UNIQUE,
-                thumbnail_small TEXT NOT NULL,
-                thumbnail_medium TEXT NOT NULL,
-                checksum TEXT NOT NULL,
-                capture_date DATETIME,
-                camera_make TEXT,
-                camera_model TEXT,
-                gps_latitude REAL,
-                gps_longitude REAL,
-                width INTEGER NOT NULL,
-                height INTEGER NOT NULL,
-                file_size INTEGER NOT NULL,
-                file_modified DATETIME NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                synced_at DATETIME,
-                sync_status TEXT DEFAULT 'pending'
-            )",
-            [],
-        )?;
-
-        // Create tags table
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS tags (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                image_id INTEGER NOT NULL,
-                label TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
-            )",
-            [],
-        )?;
-
-        // Create embeddings table
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS embeddings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                image_id INTEGER NOT NULL UNIQUE,
-                embedding BLOB NOT NULL,
-                model_version TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
-            )",
-            [],
-        )?;
-
-        // Create indexes
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_images_path ON images(path)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_images_capture_date ON images(capture_date)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_images_sync_status ON images(sync_status)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tags_image_id ON tags(image_id)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tags_label ON tags(label)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_images_checksum ON images(checksum)",
-            [],
-        )?;
-
-        Ok(())
+        Ok(Database { conn: Mutex::new(conn) })
     }
 
-    /// Insert a new image record
+    /// Insert a new image or video record
     pub fn insert_image(
         &self,
         path: &str,
         thumbnail_small: &str,
         thumbnail_medium: &str,
         checksum: &str,
+        media_type: MediaType,
         capture_date: Option<DateTime<Utc>>,
         camera_make: Option<&str>,
         camera_model: Option<&str>,
@@ -164,6 +107,8 @@ impl Database {
         gps_longitude: Option<f64>,
         width: u32,
         height: u32,
+        duration_seconds: Option<f64>,
+        video_codec: Option<&str>,
         file_size: u64,
         file_modified: DateTime<Utc>,
     ) -> Result<i64> {
@@ -174,16 +119,18 @@ impl Database {
         
         tx.execute(
             "INSERT INTO images (
-                path, thumbnail_small, thumbnail_medium, checksum,
+                path, thumbnail_small, thumbnail_medium, checksum, media_type,
                 capture_date, camera_make, camera_model,
                 gps_latitude, gps_longitude, width, height,
+                duration_seconds, video_codec,
                 file_size, file_modified
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 path,
                 thumbnail_small,
                 thumbnail_medium,
                 checksum,
+                media_type.as_str(),
                 capture_date.map(|dt| dt.to_rfc3339()),
                 camera_make,
                 camera_model,
@@ -191,6 +138,8 @@ impl Database {
                 gps_longitude,
                 width,
                 height,
+                duration_seconds,
+                video_codec,
                 file_size as i64,
                 file_modified.to_rfc3339(),
             ],
@@ -219,9 +168,10 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, path, thumbnail_small, thumbnail_medium, checksum,
+            "SELECT id, path, media_type, thumbnail_small, thumbnail_medium, checksum,
                     capture_date, camera_make, camera_model,
                     gps_latitude, gps_longitude, width, height,
+                    duration_seconds, video_codec,
                     file_size, file_modified, created_at, synced_at, sync_status
              FROM images WHERE id = ?1"
         )?;
@@ -240,9 +190,10 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, path, thumbnail_small, thumbnail_medium, checksum,
+            "SELECT id, path, media_type, thumbnail_small, thumbnail_medium, checksum,
                     capture_date, camera_make, camera_model,
                     gps_latitude, gps_longitude, width, height,
+                    duration_seconds, video_codec,
                     file_size, file_modified, created_at, synced_at, sync_status
              FROM images WHERE path = ?1"
         )?;
@@ -261,9 +212,10 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, path, thumbnail_small, thumbnail_medium, checksum,
+            "SELECT id, path, media_type, thumbnail_small, thumbnail_medium, checksum,
                     capture_date, camera_make, camera_model,
                     gps_latitude, gps_longitude, width, height,
+                    duration_seconds, video_codec,
                     file_size, file_modified, created_at, synced_at, sync_status
              FROM images WHERE checksum = ?1"
         )?;
@@ -282,9 +234,10 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         
         let mut query = String::from(
-            "SELECT DISTINCT i.id, i.path, i.thumbnail_small, i.thumbnail_medium, i.checksum,
+            "SELECT DISTINCT i.id, i.path, i.media_type, i.thumbnail_small, i.thumbnail_medium, i.checksum,
                     i.capture_date, i.camera_make, i.camera_model,
                     i.gps_latitude, i.gps_longitude, i.width, i.height,
+                    i.duration_seconds, i.video_codec,
                     i.file_size, i.file_modified, i.created_at, i.synced_at, i.sync_status
              FROM images i"
         );
@@ -424,23 +377,26 @@ fn parse_image_row(row: &Row) -> Result<ImageRecord> {
     Ok(ImageRecord {
         id: row.get(0)?,
         path: row.get(1)?,
-        thumbnail_small: row.get(2)?,
-        thumbnail_medium: row.get(3)?,
-        checksum: row.get(4)?,
-        capture_date: row.get::<_, Option<String>>(5)?
+        media_type: MediaType::from_str(&row.get::<_, String>(2)?),
+        thumbnail_small: row.get(3)?,
+        thumbnail_medium: row.get(4)?,
+        checksum: row.get(5)?,
+        capture_date: row.get::<_, Option<String>>(6)?
             .and_then(|s| parse_datetime(&s).ok()),
-        camera_make: row.get(6)?,
-        camera_model: row.get(7)?,
-        gps_latitude: row.get(8)?,
-        gps_longitude: row.get(9)?,
-        width: row.get(10)?,
-        height: row.get(11)?,
-        file_size: row.get::<_, i64>(12)? as u64,
-        file_modified: parse_datetime(&row.get::<_, String>(13)?)?,
-        created_at: parse_datetime(&row.get::<_, String>(14)?)?,
-        synced_at: row.get::<_, Option<String>>(15)?
+        camera_make: row.get(7)?,
+        camera_model: row.get(8)?,
+        gps_latitude: row.get(9)?,
+        gps_longitude: row.get(10)?,
+        width: row.get(11)?,
+        height: row.get(12)?,
+        duration_seconds: row.get(13)?,
+        video_codec: row.get(14)?,
+        file_size: row.get::<_, i64>(15)? as u64,
+        file_modified: parse_datetime(&row.get::<_, String>(16)?)?,
+        created_at: parse_datetime(&row.get::<_, String>(17)?)?,
+        synced_at: row.get::<_, Option<String>>(18)?
             .and_then(|s| parse_datetime(&s).ok()),
-        sync_status: row.get(16)?,
+        sync_status: row.get(19)?,
     })
 }
 
@@ -529,6 +485,7 @@ mod tests {
             "/path/to/thumb_small.jpg",
             "/path/to/thumb_medium.jpg",
             "abc123checksum",
+            MediaType::Image,
             Some(now),
             Some("Canon"),
             Some("EOS 5D"),
@@ -536,6 +493,8 @@ mod tests {
             Some(-122.4194),
             1920,
             1080,
+            None,
+            None,
             1024000,
             now,
         ).unwrap();
@@ -545,10 +504,13 @@ mod tests {
         // Retrieve by ID
         let image = db.get_image_by_id(image_id).unwrap().unwrap();
         assert_eq!(image.path, "/path/to/image.jpg");
+        assert_eq!(image.media_type, MediaType::Image);
         assert_eq!(image.checksum, "abc123checksum");
         assert_eq!(image.camera_make, Some("Canon".to_string()));
         assert_eq!(image.width, 1920);
         assert_eq!(image.height, 1080);
+        assert!(image.duration_seconds.is_none());
+        assert!(image.video_codec.is_none());
 
         // Retrieve by path
         let image2 = db.get_image_by_path("/path/to/image.jpg").unwrap().unwrap();
@@ -577,6 +539,7 @@ mod tests {
             "/path/to/thumb_small.jpg",
             "/path/to/thumb_medium.jpg",
             "abc123",
+            MediaType::Image,
             Some(now),
             None,
             None,
@@ -584,6 +547,8 @@ mod tests {
             None,
             1920,
             1080,
+            None,
+            None,
             1024000,
             now,
         ).unwrap();
@@ -620,6 +585,7 @@ mod tests {
             "/path/to/thumb_small.jpg",
             "/path/to/thumb_medium.jpg",
             "checksum123",
+            MediaType::Image,
             Some(now),
             None,
             None,
@@ -627,6 +593,8 @@ mod tests {
             None,
             1920,
             1080,
+            None,
+            None,
             1024000,
             now,
         ).unwrap();
@@ -658,6 +626,7 @@ mod tests {
             "/path/to/thumb_small.jpg",
             "/path/to/thumb_medium.jpg",
             "checksum123",
+            MediaType::Image,
             Some(now),
             None,
             None,
@@ -665,6 +634,8 @@ mod tests {
             None,
             1920,
             1080,
+            None,
+            None,
             1024000,
             now,
         ).unwrap();
@@ -698,6 +669,7 @@ mod tests {
             "/thumb1_s.jpg",
             "/thumb1_m.jpg",
             "check1",
+            MediaType::Image,
             Some(now),
             Some("Canon"),
             Some("EOS 5D"),
@@ -705,6 +677,8 @@ mod tests {
             Some(-122.4194),
             1920,
             1080,
+            None,
+            None,
             1024000,
             now,
         ).unwrap();
@@ -714,6 +688,7 @@ mod tests {
             "/thumb2_s.jpg",
             "/thumb2_m.jpg",
             "check2",
+            MediaType::Image,
             Some(past),
             Some("Nikon"),
             Some("D850"),
@@ -721,6 +696,8 @@ mod tests {
             Some(-74.0060),
             1920,
             1080,
+            None,
+            None,
             1024000,
             past,
         ).unwrap();
@@ -774,6 +751,7 @@ mod property_tests {
         thumbnail_small: String,
         thumbnail_medium: String,
         checksum: String,
+        media_type: MediaType,
         capture_date: Option<DateTime<Utc>>,
         camera_make: Option<String>,
         camera_model: Option<String>,
@@ -781,6 +759,8 @@ mod property_tests {
         gps_longitude: Option<f64>,
         width: u32,
         height: u32,
+        duration_seconds: Option<f64>,
+        video_codec: Option<String>,
         file_size: u64,
         file_modified: DateTime<Utc>,
     }
@@ -807,6 +787,7 @@ mod property_tests {
                 thumbnail_small: thumb_small,
                 thumbnail_medium: thumb_medium,
                 checksum,
+                media_type: MediaType::Image, // Default to image for now
                 capture_date: if has_capture_date { Some(Utc::now()) } else { None },
                 camera_make,
                 camera_model,
@@ -814,6 +795,8 @@ mod property_tests {
                 gps_longitude: gps_lon,
                 width,
                 height,
+                duration_seconds: None,
+                video_codec: None,
                 file_size,
                 file_modified: Utc::now(),
             }
@@ -850,6 +833,7 @@ mod property_tests {
                 &metadata.thumbnail_small,
                 &metadata.thumbnail_medium,
                 &metadata.checksum,
+                metadata.media_type.clone(),
                 metadata.capture_date,
                 metadata.camera_make.as_deref(),
                 metadata.camera_model.as_deref(),
@@ -857,6 +841,8 @@ mod property_tests {
                 metadata.gps_longitude,
                 metadata.width,
                 metadata.height,
+                metadata.duration_seconds,
+                metadata.video_codec.as_deref(),
                 metadata.file_size,
                 metadata.file_modified,
             ).unwrap();
@@ -920,6 +906,7 @@ mod property_tests {
                     &metadata.thumbnail_small,
                     &metadata.thumbnail_medium,
                     &metadata.checksum,
+                    metadata.media_type.clone(),
                     metadata.capture_date,
                     metadata.camera_make.as_deref(),
                     metadata.camera_model.as_deref(),
@@ -927,6 +914,8 @@ mod property_tests {
                     metadata.gps_longitude,
                     metadata.width,
                     metadata.height,
+                    metadata.duration_seconds,
+                    metadata.video_codec.as_deref(),
                     metadata.file_size,
                     metadata.file_modified,
                 ).unwrap();
@@ -1049,6 +1038,7 @@ mod property_tests {
                 &metadata.thumbnail_small,
                 &metadata.thumbnail_medium,
                 &metadata.checksum,
+                metadata.media_type.clone(),
                 metadata.capture_date,
                 metadata.camera_make.as_deref(),
                 metadata.camera_model.as_deref(),
@@ -1056,6 +1046,8 @@ mod property_tests {
                 metadata.gps_longitude,
                 metadata.width,
                 metadata.height,
+                metadata.duration_seconds,
+                metadata.video_codec.as_deref(),
                 metadata.file_size,
                 metadata.file_modified,
             ).unwrap();
@@ -1116,6 +1108,7 @@ mod property_tests {
                 thumb_small_path.to_str().unwrap(),
                 thumb_medium_path.to_str().unwrap(),
                 &metadata.checksum,
+                metadata.media_type.clone(),
                 metadata.capture_date,
                 metadata.camera_make.as_deref(),
                 metadata.camera_model.as_deref(),
@@ -1123,6 +1116,8 @@ mod property_tests {
                 metadata.gps_longitude,
                 metadata.width,
                 metadata.height,
+                metadata.duration_seconds,
+                metadata.video_codec.as_deref(),
                 metadata.file_size,
                 metadata.file_modified,
             ).unwrap();
@@ -1171,6 +1166,7 @@ mod property_tests {
                 &metadata.thumbnail_small,
                 &metadata.thumbnail_medium,
                 &metadata.checksum,
+                metadata.media_type.clone(),
                 metadata.capture_date,
                 metadata.camera_make.as_deref(),
                 metadata.camera_model.as_deref(),
@@ -1178,6 +1174,8 @@ mod property_tests {
                 metadata.gps_longitude,
                 metadata.width,
                 metadata.height,
+                metadata.duration_seconds,
+                metadata.video_codec.as_deref(),
                 metadata.file_size,
                 metadata.file_modified,
             ).unwrap();
@@ -1222,6 +1220,7 @@ mod property_tests {
                     thumbnail_small: format!("thumb_small_{}.jpg", i),
                     thumbnail_medium: format!("thumb_medium_{}.jpg", i),
                     checksum: format!("checksum_{}", i),
+                    media_type: MediaType::Image,
                     capture_date: Some(Utc::now()),
                     camera_make: Some("TestCamera".to_string()),
                     camera_model: Some("Model1".to_string()),
@@ -1229,6 +1228,8 @@ mod property_tests {
                     gps_longitude: Some(-122.4194),
                     width: 1920,
                     height: 1080,
+                    duration_seconds: None,
+                    video_codec: None,
                     file_size: 1024000,
                     file_modified: Utc::now(),
                 })
@@ -1252,6 +1253,7 @@ mod property_tests {
                         &metadata.thumbnail_small,
                         &metadata.thumbnail_medium,
                         &metadata.checksum,
+                        metadata.media_type.clone(),
                         metadata.capture_date,
                         metadata.camera_make.as_deref(),
                         metadata.camera_model.as_deref(),
@@ -1259,6 +1261,8 @@ mod property_tests {
                         metadata.gps_longitude,
                         metadata.width,
                         metadata.height,
+                        metadata.duration_seconds,
+                        metadata.video_codec.as_deref(),
                         metadata.file_size,
                         metadata.file_modified,
                     ).unwrap();

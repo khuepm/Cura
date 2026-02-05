@@ -506,6 +506,7 @@ mod property_tests {
                     &format!("/thumb_small_{}.jpg", i),
                     &format!("/thumb_medium_{}.jpg", i),
                     &checksum,
+                    crate::database::MediaType::Image,
                     Some(Utc::now()),
                     Some("TestCamera"),
                     Some("TestModel"),
@@ -513,6 +514,8 @@ mod property_tests {
                     None,
                     1920,
                     1080,
+                    None,
+                    None,
                     1024,
                     Utc::now(),
                 )
