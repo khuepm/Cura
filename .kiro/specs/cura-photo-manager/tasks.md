@@ -699,7 +699,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 12.1_
   
-  - [~] 26.2 Write unit test for settings format configuration
+  - [x] 26.2 Write unit test for settings format configuration
     - Test loading format configuration
     - Test saving format configuration changes
     - Test validation of format selections
