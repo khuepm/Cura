@@ -102,6 +102,42 @@ export async function generateThumbnails(
 }
 
 /**
+ * Generate thumbnails for a video file
+ * @param videoPath - Path to the video file
+ * @returns ThumbnailPaths with paths to small and medium thumbnails
+ */
+export async function generateVideoThumbnails(
+  videoPath: string
+): Promise<ThumbnailPaths> {
+  try {
+    const result = await invoke<ThumbnailPaths>('generate_video_thumbnails', {
+      videoPath,
+    });
+    return result;
+  } catch (error) {
+    throw new Error(`Failed to generate video thumbnails: ${error}`);
+  }
+}
+
+/**
+ * Extract metadata from a video file
+ * @param videoPath - Path to the video file
+ * @returns ImageMetadata with video metadata and file system data
+ */
+export async function extractVideoMetadata(
+  videoPath: string
+): Promise<RustImageMetadata> {
+  try {
+    const result = await invoke<RustImageMetadata>('extract_video_metadata', {
+      videoPath,
+    });
+    return result;
+  } catch (error) {
+    throw new Error(`Failed to extract video metadata: ${error}`);
+  }
+}
+
+/**
  * Save tags for an image
  * @param imageId - Database ID of the image
  * @param tags - Array of [label, confidence] tuples

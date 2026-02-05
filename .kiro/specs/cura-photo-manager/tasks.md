@@ -708,7 +708,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 12.1, 12.4_
 
 - [ ] 27. Update media import flow for videos
-  - [~] 27.1 Integrate video processing into import pipeline
+  - [-] 27.1 Integrate video processing into import pipeline
     - Update folder import flow to process both images and videos
     - Call generate_video_thumbnails for video files
     - Call extract_metadata for video files

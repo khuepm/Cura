@@ -3,10 +3,13 @@ import { useAppDispatch } from '../store/AppContext';
 import {
   scanFolder,
   extractMetadata,
+  extractVideoMetadata,
   generateThumbnails,
+  generateVideoThumbnails,
   type ScanResult,
   type RustImageMetadata,
   type ThumbnailPaths,
+  type MediaType,
 } from '../tauri/commands';
 import { handleError } from '../utils/errorHandler';
 import type { ImageRecord, ImageMetadata } from '../types';
@@ -58,7 +61,7 @@ export function useTauriCommands() {
         dispatch({ type: 'SET_IS_SCANNING', payload: true });
         dispatch({
           type: 'SET_SCAN_PROGRESS',
-          payload: { count: 0, currentFile: '' },
+          payload: { count: 0, imageCount: 0, videoCount: 0, currentFile: '' },
         });
 
         const result = await scanFolder(folderPath);
@@ -93,6 +96,22 @@ export function useTauriCommands() {
   );
 
   /**
+   * Extract metadata from a video
+   */
+  const getVideoMetadata = useCallback(
+    async (videoPath: string): Promise<ImageMetadata | null> => {
+      try {
+        const rustMetadata = await extractVideoMetadata(videoPath);
+        return convertMetadata(rustMetadata);
+      } catch (error) {
+        const errorMessage = handleError(error, 'Extract Video Metadata');
+        throw new Error(errorMessage);
+      }
+    },
+    [convertMetadata]
+  );
+
+  /**
    * Generate thumbnails for an image
    */
   const getThumbnails = useCallback(
@@ -109,18 +128,37 @@ export function useTauriCommands() {
   );
 
   /**
-   * Process a single image: extract metadata and generate thumbnails
+   * Generate thumbnails for a video
+   */
+  const getVideoThumbnails = useCallback(
+    async (videoPath: string): Promise<ThumbnailPaths | null> => {
+      try {
+        const thumbnails = await generateVideoThumbnails(videoPath);
+        return thumbnails;
+      } catch (error) {
+        const errorMessage = handleError(error, 'Generate Video Thumbnails');
+        throw new Error(errorMessage);
+      }
+    },
+    []
+  );
+
+  /**
+   * Process a single media file: extract metadata and generate thumbnails
+   * Handles both images and videos
    */
   const processImage = useCallback(
     async (
-      imagePath: string,
-      imageId: number
+      mediaPath: string,
+      mediaId: number,
+      mediaType: MediaType = 'image'
     ): Promise<Partial<ImageRecord> | null> => {
       try {
         // Extract metadata and generate thumbnails in parallel
+        // Use appropriate functions based on media type
         const [metadata, thumbnails] = await Promise.all([
-          getMetadata(imagePath),
-          getThumbnails(imagePath),
+          mediaType === 'video' ? getVideoMetadata(mediaPath) : getMetadata(mediaPath),
+          mediaType === 'video' ? getVideoThumbnails(mediaPath) : getThumbnails(mediaPath),
         ]);
 
         if (!metadata || !thumbnails) {
@@ -128,8 +166,9 @@ export function useTauriCommands() {
         }
 
         return {
-          id: imageId,
-          path: imagePath,
+          id: mediaId,
+          path: mediaPath,
+          mediaType,
           thumbnailSmall: thumbnails.small,
           thumbnailMedium: thumbnails.medium,
           metadata,
@@ -137,18 +176,20 @@ export function useTauriCommands() {
           syncStatus: 'pending',
         };
       } catch (error) {
-        const errorMessage = handleError(error, 'Process Image');
-        console.error(`Failed to process image ${imagePath}:`, errorMessage);
+        const errorMessage = handleError(error, 'Process Media');
+        console.error(`Failed to process ${mediaType} ${mediaPath}:`, errorMessage);
         return null;
       }
     },
-    [getMetadata, getThumbnails]
+    [getMetadata, getVideoMetadata, getThumbnails, getVideoThumbnails]
   );
 
   return {
     scan,
     getMetadata,
+    getVideoMetadata,
     getThumbnails,
+    getVideoThumbnails,
     processImage,
   };
 }

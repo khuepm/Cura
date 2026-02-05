@@ -87,6 +87,8 @@ export interface AppSettings {
 
 export interface ScanProgress {
   count: number;
+  imageCount?: number;
+  videoCount?: number;
   currentFile: string;
 }
 

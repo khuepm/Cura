@@ -22,7 +22,9 @@ export function useFolderImport() {
         dispatch({
           type: 'SET_SCAN_PROGRESS',
           payload: {
-            count: progress.count,
+            count: progress.total_count,
+            imageCount: progress.image_count,
+            videoCount: progress.video_count,
             currentFile: progress.current_file,
           },
         });
@@ -91,7 +93,7 @@ export function useFolderImport() {
           // Process batch in parallel
           const processedBatch = await Promise.all(
             batch.map((mediaFile, index) =>
-              processImage(mediaFile.path, i + index + 1).then(img => 
+              processImage(mediaFile.path, i + index + 1, mediaFile.media_type).then(img => 
                 img ? { ...img, mediaType: mediaFile.media_type } : null
               )
             )
@@ -130,7 +132,7 @@ export function useFolderImport() {
         dispatch({ type: 'SET_IS_SCANNING', payload: false });
 
         console.log(
-          `Import complete: ${images.length} images processed successfully`
+          `Import complete: ${images.length} media files processed successfully (${scanResult.image_count} images, ${scanResult.video_count} videos)`
         );
       } catch (error) {
         dispatch({ type: 'SET_IS_SCANNING', payload: false });
