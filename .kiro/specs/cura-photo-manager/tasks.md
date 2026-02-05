@@ -615,7 +615,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 3.5 (extended)_
 
 - [ ] 23. Implement video metadata extraction
-  - [-] 23.1 Create video metadata extractor
+  - [x] 23.1 Create video metadata extractor
     - Extend extract_metadata command to handle video files
     - Use FFmpeg to extract video metadata (duration, codec, dimensions)
     - Extract file system metadata (size, modified date)
@@ -623,13 +623,13 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 2.1 (extended)_
   
-  - [~] 23.2 Write property test for video metadata extraction
+  - [x] 23.2 Write property test for video metadata extraction
     - **Property 31: Video Metadata Extraction**
     - **Validates: Requirements 2.1 (extended)**
     - Test with various video files
     - Verify metadata includes duration, codec, dimensions, file size
   
-  - [~] 23.3 Write unit test for video metadata fallback
+  - [x] 23.3 Write unit test for video metadata fallback
     - Test videos with missing metadata
     - Verify fallback to file system timestamps
     - create github commit for this task then push to github
@@ -637,7 +637,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 2.2 (extended)_
 
 - [ ] 24. Update database operations for video support
-  - [~] 24.1 Extend database functions for media type
+  - [-] 24.1 Extend database functions for media type
     - Update insert_image function to accept media_type parameter
     - Update insert_image function to accept video metadata (duration, codec)
     - Update query functions to support media_type filtering

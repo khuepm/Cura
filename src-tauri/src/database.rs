@@ -72,6 +72,7 @@ pub struct ImageFilter {
     pub location: Option<(f64, f64, f64)>, // (latitude, longitude, radius_km)
     pub tags: Option<Vec<String>>,
     pub camera_model: Option<String>,
+    pub media_type: Option<MediaType>, // Filter by media type (image/video)
 }
 
 pub struct Database {
@@ -255,6 +256,12 @@ impl Database {
                     params_vec.push(Box::new(tag.clone()));
                 }
             }
+        }
+
+        // Add media type filter
+        if let Some(media_type) = &filter.media_type {
+            conditions.push("i.media_type = ?".to_string());
+            params_vec.push(Box::new(media_type.as_str().to_string()));
         }
 
         // Add date range filter

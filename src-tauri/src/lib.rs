@@ -206,6 +206,7 @@ fn search_images(
         location: None, // Location filtering not implemented yet
         tags,
         camera_model,
+        media_type: None, // No media type filter for now
     };
     
     // Query database
