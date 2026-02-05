@@ -23,6 +23,7 @@ export default function SearchPage() {
         captureDate: img!.metadata.captureDate?.toISOString(),
         width: img!.metadata.dimensions.width,
         height: img!.metadata.dimensions.height,
+        mediaType: img!.mediaType,
       }));
   }, [search.results, images.items]);
 

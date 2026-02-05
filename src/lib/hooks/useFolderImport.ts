@@ -91,7 +91,9 @@ export function useFolderImport() {
           // Process batch in parallel
           const processedBatch = await Promise.all(
             batch.map((mediaFile, index) =>
-              processImage(mediaFile.path, i + index + 1)
+              processImage(mediaFile.path, i + index + 1).then(img => 
+                img ? { ...img, mediaType: mediaFile.media_type } : null
+              )
             )
           );
 
@@ -101,6 +103,7 @@ export function useFolderImport() {
               img !== null &&
               img.id !== undefined &&
               img.path !== undefined &&
+              img.mediaType !== undefined &&
               img.thumbnailSmall !== undefined &&
               img.thumbnailMedium !== undefined &&
               img.metadata !== undefined

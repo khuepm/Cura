@@ -182,6 +182,7 @@ export async function getImageById(imageId: number): Promise<RustImageRecord | n
 export interface RustImageRecord {
   id: number;
   path: string;
+  media_type: MediaType;
   thumbnail_small: string;
   thumbnail_medium: string;
   checksum: string;
@@ -192,6 +193,8 @@ export interface RustImageRecord {
   gps_longitude: number | null;
   width: number;
   height: number;
+  duration_seconds: number | null;
+  video_codec: string | null;
   file_size: number;
   file_modified: string;
   created_at: string;

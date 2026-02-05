@@ -652,7 +652,7 @@ This implementation plan breaks down the Cura media management application into 
     - Test filtering by media_type (image, video, all)
     - Verify only matching media types are returned
   
-  - [-] 24.3 Write unit test for video record insertion
+  - [x] 24.3 Write unit test for video record insertion
     - Test inserting video records with all metadata fields
     - Verify video-specific fields are stored correctly
     - create github commit for this task then push to github
@@ -660,7 +660,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 6.1 (extended)_
 
 - [ ] 25. Update frontend UI for video support
-  - [~] 25.1 Update photo grid to show video indicators
+  - [-] 25.1 Update photo grid to show video indicators
     - Add video icon overlay to video thumbnails
     - Add media type filter dropdown (All, Images, Videos)
     - Update grid rendering to handle both images and videos

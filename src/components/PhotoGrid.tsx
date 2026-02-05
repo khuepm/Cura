@@ -3,7 +3,8 @@
 import React from "react";
 import { FixedSizeGrid as Grid } from "react-window";
 import { useRouter } from "next/navigation";
-import { useAppState } from "@/lib/store/AppContext";
+import { useAppState, useAppDispatch } from "@/lib/store/AppContext";
+import type { MediaType } from "@/lib/types";
 
 export interface PhotoGridItem {
   id: number;
@@ -11,6 +12,7 @@ export interface PhotoGridItem {
   captureDate?: string;
   width: number;
   height: number;
+  mediaType: MediaType;
 }
 
 interface PhotoGridProps {
@@ -25,11 +27,12 @@ const GAP = 16;
 export default function PhotoGrid({ photos: propPhotos, isLoading = false }: PhotoGridProps) {
   const router = useRouter();
   const { images, scanning } = useAppState();
+  const dispatch = useAppDispatch();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 0, height: 0 });
 
   // Use photos from props if provided, otherwise use photos from state
-  const photos = React.useMemo(() => {
+  const allPhotos = React.useMemo(() => {
     if (propPhotos) {
       return propPhotos;
     }
@@ -41,8 +44,17 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
       captureDate: image.metadata.captureDate?.toISOString(),
       width: image.metadata.dimensions.width,
       height: image.metadata.dimensions.height,
+      mediaType: image.mediaType,
     }));
   }, [propPhotos, images.items]);
+
+  // Filter photos based on media type filter
+  const photos = React.useMemo(() => {
+    if (images.mediaTypeFilter === 'all') {
+      return allPhotos;
+    }
+    return allPhotos.filter(photo => photo.mediaType === images.mediaTypeFilter);
+  }, [allPhotos, images.mediaTypeFilter]);
 
   const actualIsLoading = isLoading || scanning.isScanning;
 
@@ -70,11 +82,16 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
     router.push(`/photo/${photoId}`);
   };
 
+  const handleMediaTypeFilterChange = (filter: 'all' | 'image' | 'video') => {
+    dispatch({ type: 'SET_MEDIA_TYPE_FILTER', payload: filter });
+  };
+
   const Cell = ({ columnIndex, rowIndex, style }: any) => {
     const index = rowIndex * columnCount + columnIndex;
     if (index >= photos.length) return null;
 
     const photo = photos[index];
+    const isVideo = photo.mediaType === 'video';
 
     return (
       <div
@@ -88,17 +105,34 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
       >
         <div
           onClick={() => handlePhotoClick(photo.id)}
-          className="w-full h-full bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all group"
+          className="relative w-full h-full bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all group"
         >
           <img
             src={photo.thumbnailSmall}
-            alt={`Photo ${photo.id}`}
+            alt={isVideo ? `Video ${photo.id}` : `Photo ${photo.id}`}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
+          {/* Video indicator overlay */}
+          {isVideo && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/60 rounded-full p-3">
+                <span className="material-symbols-outlined text-white text-4xl">
+                  play_circle
+                </span>
+              </div>
+            </div>
+          )}
+          {/* Date overlay on hover */}
           {photo.captureDate && (
             <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
               {new Date(photo.captureDate).toLocaleDateString()}
+            </div>
+          )}
+          {/* Media type badge */}
+          {isVideo && (
+            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+              VIDEO
             </div>
           )}
         </div>
@@ -110,7 +144,7 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
     return <PhotoGridSkeleton />;
   }
 
-  if (photos.length === 0) {
+  if (allPhotos.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center">
         <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">
@@ -127,19 +161,70 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full">
-      {dimensions.width > 0 && dimensions.height > 0 && (
-        <Grid
-          columnCount={columnCount}
-          columnWidth={COLUMN_WIDTH + GAP}
-          height={dimensions.height}
-          rowCount={rowCount}
-          rowHeight={ROW_HEIGHT + GAP}
-          width={dimensions.width}
-        >
-          {Cell}
-        </Grid>
-      )}
+    <div className="flex flex-col h-full">
+      {/* Media type filter */}
+      <div className="flex items-center gap-2 p-4 border-b border-slate-200 dark:border-slate-700">
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          Show:
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleMediaTypeFilterChange('all')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${images.mediaTypeFilter === 'all'
+                ? 'bg-primary text-white'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              }`}
+          >
+            All ({allPhotos.length})
+          </button>
+          <button
+            onClick={() => handleMediaTypeFilterChange('image')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${images.mediaTypeFilter === 'image'
+                ? 'bg-primary text-white'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              }`}
+          >
+            Images ({allPhotos.filter(p => p.mediaType === 'image').length})
+          </button>
+          <button
+            onClick={() => handleMediaTypeFilterChange('video')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${images.mediaTypeFilter === 'video'
+                ? 'bg-primary text-white'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              }`}
+          >
+            Videos ({allPhotos.filter(p => p.mediaType === 'video').length})
+          </button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div ref={containerRef} className="flex-1">
+        {photos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">
+              {images.mediaTypeFilter === 'video' ? 'videocam' : 'photo'}
+            </span>
+            <h3 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              No {images.mediaTypeFilter === 'all' ? 'media' : images.mediaTypeFilter + 's'} found
+            </h3>
+            <p className="text-slate-500 dark:text-slate-400">
+              Try changing the filter or import more files
+            </p>
+          </div>
+        ) : dimensions.width > 0 && dimensions.height > 0 ? (
+          <Grid
+            columnCount={columnCount}
+            columnWidth={COLUMN_WIDTH + GAP}
+            height={dimensions.height}
+            rowCount={rowCount}
+            rowHeight={ROW_HEIGHT + GAP}
+            width={dimensions.width}
+          >
+            {Cell}
+          </Grid>
+        ) : null}
+      </div>
     </div>
   );
 }

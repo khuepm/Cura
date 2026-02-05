@@ -1,5 +1,7 @@
 // Core domain types for Cura Photo Manager
 
+export type MediaType = 'image' | 'video';
+
 export interface ImageMetadata {
   captureDate?: Date;
   cameraMake?: string;
@@ -12,6 +14,10 @@ export interface ImageMetadata {
     width: number;
     height: number;
   };
+  // Video-specific metadata
+  durationSeconds?: number;
+  videoCodec?: string;
+  // Common metadata
   fileSize: number;
   fileModified: Date;
 }
@@ -26,6 +32,7 @@ export type SyncStatus = 'pending' | 'synced' | 'failed';
 export interface ImageRecord {
   id: number;
   path: string;
+  mediaType: MediaType;
   thumbnailSmall: string;
   thumbnailMedium: string;
   checksum: string;
@@ -48,6 +55,7 @@ export interface SearchQuery {
     radiusKm: number;
   };
   cameraModel?: string;
+  mediaType?: MediaType | 'all'; // Filter by media type
   semantic?: boolean;
 }
 

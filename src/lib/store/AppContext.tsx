@@ -16,6 +16,7 @@ export interface AppState {
     selectedFolder: string | null;
     viewMode: 'grid' | 'detail';
     selectedImageId: number | null;
+    mediaTypeFilter: 'all' | 'image' | 'video'; // Filter for displayed media
   };
   search: {
     query: SearchQuery;
@@ -49,6 +50,7 @@ export type AppAction =
   | { type: 'SET_SELECTED_FOLDER'; payload: string }
   | { type: 'SET_VIEW_MODE'; payload: 'grid' | 'detail' }
   | { type: 'SET_SELECTED_IMAGE'; payload: number | null }
+  | { type: 'SET_MEDIA_TYPE_FILTER'; payload: 'all' | 'image' | 'video' }
   | { type: 'ADD_IMAGES'; payload: ImageRecord[] }
   | { type: 'UPDATE_IMAGE'; payload: ImageRecord }
   | { type: 'REMOVE_IMAGE'; payload: number }
@@ -76,6 +78,7 @@ const initialState: AppState = {
     selectedFolder: null,
     viewMode: 'grid',
     selectedImageId: null,
+    mediaTypeFilter: 'all',
   },
   search: {
     query: {},
@@ -136,6 +139,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         images: { ...state.images, selectedImageId: action.payload },
+      };
+
+    case 'SET_MEDIA_TYPE_FILTER':
+      return {
+        ...state,
+        images: { ...state.images, mediaTypeFilter: action.payload },
       };
 
     case 'ADD_IMAGES': {

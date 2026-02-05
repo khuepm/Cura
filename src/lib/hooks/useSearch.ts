@@ -121,6 +121,7 @@ export function useSearch() {
         results = rustResults.map((rustImg: RustImageRecord) => ({
           id: rustImg.id,
           path: rustImg.path,
+          mediaType: rustImg.media_type,
           thumbnailSmall: rustImg.thumbnail_small,
           thumbnailMedium: rustImg.thumbnail_medium,
           checksum: rustImg.checksum,
@@ -139,6 +140,8 @@ export function useSearch() {
               width: rustImg.width,
               height: rustImg.height,
             },
+            durationSeconds: rustImg.duration_seconds || undefined,
+            videoCodec: rustImg.video_codec || undefined,
             fileSize: rustImg.file_size,
             fileModified: new Date(rustImg.file_modified),
           },

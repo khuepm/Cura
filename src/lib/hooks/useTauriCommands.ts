@@ -40,6 +40,8 @@ export function useTauriCommands() {
           width: rustMetadata.width,
           height: rustMetadata.height,
         },
+        durationSeconds: undefined, // Not available from extract_metadata
+        videoCodec: undefined, // Not available from extract_metadata
         fileSize: rustMetadata.file_size,
         fileModified: new Date(rustMetadata.file_modified),
       };

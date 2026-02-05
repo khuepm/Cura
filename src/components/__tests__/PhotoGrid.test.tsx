@@ -24,12 +24,14 @@ describe("PhotoGrid", () => {
       captureDate: "2024-01-15T10:30:00Z",
       width: 1920,
       height: 1080,
+      mediaType: 'image',
     },
     {
       id: 2,
       thumbnailSmall: "/thumb2.jpg",
       width: 1920,
       height: 1080,
+      mediaType: 'video',
     },
   ];
 
