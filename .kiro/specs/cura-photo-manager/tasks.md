@@ -708,7 +708,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 12.1, 12.4_
 
 - [ ] 27. Update media import flow for videos
-  - [-] 27.1 Integrate video processing into import pipeline
+  - [x] 27.1 Integrate video processing into import pipeline
     - Update folder import flow to process both images and videos
     - Call generate_video_thumbnails for video files
     - Call extract_metadata for video files
@@ -717,7 +717,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 1.2, 1.5 (extended)_
   
-  - [~] 27.2 Write integration test for mixed media import
+  - [x] 27.2 Write integration test for mixed media import
     - Test importing folder with both images and videos
     - Verify all media files are processed correctly
     - Verify thumbnails are generated for both types

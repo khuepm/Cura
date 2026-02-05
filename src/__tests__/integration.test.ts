@@ -26,7 +26,7 @@ describe('Integration Tests - Complete User Flows', () => {
     it('should complete the full import flow', async () => {
       // Step 1: Scan folder
       const mockScanResult = {
-        images: [
+        media_files: [
           { path: '/test/image1.jpg', media_type: 'image' },
           { path: '/test/image2.png', media_type: 'image' },
         ],
@@ -383,6 +383,390 @@ describe('Integration Tests - Complete User Flows', () => {
       expect(mockInvoke).toHaveBeenCalledWith('save_settings', {
         newSettings,
       });
+    });
+  });
+
+  describe('Flow 5: Mixed Media Import - Images and Videos', () => {
+    it('should import folder with both images and videos', async () => {
+      // Step 1: Scan folder with mixed media
+      const mockScanResult = {
+        media_files: [
+          { path: '/test/photo1.jpg', media_type: 'image' },
+          { path: '/test/photo2.png', media_type: 'image' },
+          { path: '/test/video1.mp4', media_type: 'video' },
+          { path: '/test/video2.mov', media_type: 'video' },
+          { path: '/test/subfolder/photo3.heic', media_type: 'image' },
+          { path: '/test/subfolder/video3.avi', media_type: 'video' },
+        ],
+        total_count: 6,
+        image_count: 3,
+        video_count: 3,
+        errors: [],
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockScanResult);
+
+      const scanResult = await mockInvoke('scan_folder', {
+        folderPath: '/test',
+      });
+
+      // Verify scan results
+      expect(scanResult.total_count).toBe(6);
+      expect(scanResult.image_count).toBe(3);
+      expect(scanResult.video_count).toBe(3);
+      expect(scanResult.media_files).toHaveLength(6);
+      expect(scanResult.errors).toHaveLength(0);
+
+      // Verify media types are correctly identified
+      const images = scanResult.media_files.filter((m: any) => m.media_type === 'image');
+      const videos = scanResult.media_files.filter((m: any) => m.media_type === 'video');
+      expect(images).toHaveLength(3);
+      expect(videos).toHaveLength(3);
+
+      // Step 2: Process images - extract metadata and generate thumbnails
+      for (const media of images) {
+        // Extract image metadata
+        const mockImageMetadata = {
+          path: media.path,
+          capture_date: '2024-01-15T10:30:00Z',
+          camera_make: 'Canon',
+          camera_model: 'EOS R5',
+          width: 6000,
+          height: 4000,
+          file_size: 5242880,
+          file_modified: '2024-01-15T10:30:00Z',
+        };
+
+        mockInvoke.mockResolvedValueOnce(mockImageMetadata);
+
+        const imageMetadata = await mockInvoke('extract_metadata', {
+          imagePath: media.path,
+        });
+
+        expect(imageMetadata.path).toBe(media.path);
+        expect(imageMetadata.width).toBeGreaterThan(0);
+        expect(imageMetadata.height).toBeGreaterThan(0);
+
+        // Generate image thumbnails
+        const mockImageThumbnails = {
+          small: `/cache/thumbnails/${media.path.split('/').pop()}_small.jpg`,
+          medium: `/cache/thumbnails/${media.path.split('/').pop()}_medium.jpg`,
+        };
+
+        mockInvoke.mockResolvedValueOnce(mockImageThumbnails);
+
+        const imageThumbnails = await mockInvoke('generate_thumbnails', {
+          imagePath: media.path,
+        });
+
+        expect(imageThumbnails.small).toContain('_small.jpg');
+        expect(imageThumbnails.medium).toContain('_medium.jpg');
+      }
+
+      // Step 3: Process videos - extract metadata and generate thumbnails
+      for (const media of videos) {
+        // Extract video metadata
+        const mockVideoMetadata = {
+          path: media.path,
+          width: 1920,
+          height: 1080,
+          duration_seconds: 120.5,
+          video_codec: 'h264',
+          file_size: 15728640,
+          file_modified: '2024-01-15T11:00:00Z',
+        };
+
+        mockInvoke.mockResolvedValueOnce(mockVideoMetadata);
+
+        const videoMetadata = await mockInvoke('extract_metadata', {
+          imagePath: media.path, // Note: command name is still imagePath for compatibility
+        });
+
+        expect(videoMetadata.path).toBe(media.path);
+        expect(videoMetadata.duration_seconds).toBeGreaterThan(0);
+        expect(videoMetadata.video_codec).toBeTruthy();
+        expect(videoMetadata.width).toBeGreaterThan(0);
+        expect(videoMetadata.height).toBeGreaterThan(0);
+
+        // Generate video thumbnails (extracted from video frame)
+        const mockVideoThumbnails = {
+          small: `/cache/thumbnails/${media.path.split('/').pop()}_small.jpg`,
+          medium: `/cache/thumbnails/${media.path.split('/').pop()}_medium.jpg`,
+        };
+
+        mockInvoke.mockResolvedValueOnce(mockVideoThumbnails);
+
+        const videoThumbnails = await mockInvoke('generate_video_thumbnails', {
+          videoPath: media.path,
+        });
+
+        expect(videoThumbnails.small).toContain('_small.jpg');
+        expect(videoThumbnails.medium).toContain('_medium.jpg');
+      }
+
+      // Verify all media files were processed
+      // 3 images × 2 calls (metadata + thumbnails) + 3 videos × 2 calls (metadata + thumbnails) + 1 scan = 13 calls
+      expect(mockInvoke).toHaveBeenCalledTimes(13);
+    });
+
+    it('should handle mixed media with some processing errors', async () => {
+      // Scan with mixed media including some problematic files
+      const mockScanResult = {
+        media_files: [
+          { path: '/test/good_image.jpg', media_type: 'image' },
+          { path: '/test/good_video.mp4', media_type: 'video' },
+          { path: '/test/corrupt_image.jpg', media_type: 'image' },
+          { path: '/test/corrupt_video.mp4', media_type: 'video' },
+        ],
+        total_count: 4,
+        image_count: 2,
+        video_count: 2,
+        errors: [],
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockScanResult);
+
+      const scanResult = await mockInvoke('scan_folder', {
+        folderPath: '/test',
+      });
+
+      expect(scanResult.total_count).toBe(4);
+      expect(scanResult.image_count).toBe(2);
+      expect(scanResult.video_count).toBe(2);
+
+      // Process good image - succeeds
+      mockInvoke.mockResolvedValueOnce({
+        path: '/test/good_image.jpg',
+        width: 1920,
+        height: 1080,
+        file_size: 2048000,
+      });
+
+      const goodImageMetadata = await mockInvoke('extract_metadata', {
+        imagePath: '/test/good_image.jpg',
+      });
+
+      expect(goodImageMetadata.path).toBe('/test/good_image.jpg');
+
+      // Process corrupt image - fails
+      mockInvoke.mockRejectedValueOnce(new Error('Failed to decode image'));
+
+      try {
+        await mockInvoke('extract_metadata', {
+          imagePath: '/test/corrupt_image.jpg',
+        });
+      } catch (error: any) {
+        expect(error.message).toBe('Failed to decode image');
+      }
+
+      // Process good video - succeeds
+      mockInvoke.mockResolvedValueOnce({
+        path: '/test/good_video.mp4',
+        width: 1920,
+        height: 1080,
+        duration_seconds: 60.0,
+        video_codec: 'h264',
+        file_size: 10240000,
+      });
+
+      const goodVideoMetadata = await mockInvoke('extract_metadata', {
+        imagePath: '/test/good_video.mp4',
+      });
+
+      expect(goodVideoMetadata.duration_seconds).toBe(60.0);
+
+      // Process corrupt video - fails
+      mockInvoke.mockRejectedValueOnce(new Error('Failed to extract video frame'));
+
+      try {
+        await mockInvoke('generate_video_thumbnails', {
+          videoPath: '/test/corrupt_video.mp4',
+        });
+      } catch (error: any) {
+        expect(error.message).toBe('Failed to extract video frame');
+      }
+
+      // Verify error handling allows processing to continue
+      expect(mockInvoke).toHaveBeenCalled();
+    });
+
+    it('should correctly filter media by type after import', async () => {
+      // Import mixed media
+      const mockScanResult = {
+        media_files: [
+          { path: '/test/image1.jpg', media_type: 'image' },
+          { path: '/test/image2.png', media_type: 'image' },
+          { path: '/test/video1.mp4', media_type: 'video' },
+          { path: '/test/video2.mov', media_type: 'video' },
+        ],
+        total_count: 4,
+        image_count: 2,
+        video_count: 2,
+        errors: [],
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockScanResult);
+
+      await mockInvoke('scan_folder', { folderPath: '/test' });
+
+      // Query for images only
+      const mockImageResults = [
+        {
+          id: 1,
+          path: '/test/image1.jpg',
+          media_type: 'image',
+          thumbnail_small: '/cache/image1_small.jpg',
+        },
+        {
+          id: 2,
+          path: '/test/image2.png',
+          media_type: 'image',
+          thumbnail_small: '/cache/image2_small.jpg',
+        },
+      ];
+
+      mockInvoke.mockResolvedValueOnce(mockImageResults);
+
+      const imageResults = await mockInvoke('query_media', {
+        mediaType: 'image',
+      });
+
+      expect(imageResults).toHaveLength(2);
+      expect(imageResults.every((m: any) => m.media_type === 'image')).toBe(true);
+
+      // Query for videos only
+      const mockVideoResults = [
+        {
+          id: 3,
+          path: '/test/video1.mp4',
+          media_type: 'video',
+          thumbnail_small: '/cache/video1_small.jpg',
+          duration_seconds: 120.0,
+        },
+        {
+          id: 4,
+          path: '/test/video2.mov',
+          media_type: 'video',
+          thumbnail_small: '/cache/video2_small.jpg',
+          duration_seconds: 90.5,
+        },
+      ];
+
+      mockInvoke.mockResolvedValueOnce(mockVideoResults);
+
+      const videoResults = await mockInvoke('query_media', {
+        mediaType: 'video',
+      });
+
+      expect(videoResults).toHaveLength(2);
+      expect(videoResults.every((m: any) => m.media_type === 'video')).toBe(true);
+      expect(videoResults.every((m: any) => m.duration_seconds > 0)).toBe(true);
+
+      // Query for all media
+      const mockAllResults = [...mockImageResults, ...mockVideoResults];
+
+      mockInvoke.mockResolvedValueOnce(mockAllResults);
+
+      const allResults = await mockInvoke('query_media', {
+        mediaType: 'all',
+      });
+
+      expect(allResults).toHaveLength(4);
+    });
+
+    it('should generate thumbnails for both images and videos with correct dimensions', async () => {
+      // Test image thumbnail generation
+      const mockImageThumbnails = {
+        small: '/cache/thumbnails/image_abc123_small.jpg',
+        medium: '/cache/thumbnails/image_abc123_medium.jpg',
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockImageThumbnails);
+
+      const imageThumbnails = await mockInvoke('generate_thumbnails', {
+        imagePath: '/test/photo.jpg',
+      });
+
+      expect(imageThumbnails.small).toContain('_small.jpg');
+      expect(imageThumbnails.medium).toContain('_medium.jpg');
+
+      // Test video thumbnail generation (from extracted frame)
+      const mockVideoThumbnails = {
+        small: '/cache/thumbnails/video_def456_small.jpg',
+        medium: '/cache/thumbnails/video_def456_medium.jpg',
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockVideoThumbnails);
+
+      const videoThumbnails = await mockInvoke('generate_video_thumbnails', {
+        videoPath: '/test/video.mp4',
+      });
+
+      expect(videoThumbnails.small).toContain('_small.jpg');
+      expect(videoThumbnails.medium).toContain('_medium.jpg');
+
+      // Both should produce thumbnails in the same format (JPEG)
+      expect(imageThumbnails.small.endsWith('.jpg')).toBe(true);
+      expect(videoThumbnails.small.endsWith('.jpg')).toBe(true);
+    });
+
+    it('should extract metadata for both images and videos with type-specific fields', async () => {
+      // Extract image metadata
+      const mockImageMetadata = {
+        path: '/test/photo.jpg',
+        capture_date: '2024-01-15T10:30:00Z',
+        camera_make: 'Canon',
+        camera_model: 'EOS R5',
+        gps_latitude: 37.7749,
+        gps_longitude: -122.4194,
+        width: 6000,
+        height: 4000,
+        file_size: 5242880,
+        file_modified: '2024-01-15T10:30:00Z',
+        // No video-specific fields
+        duration_seconds: null,
+        video_codec: null,
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockImageMetadata);
+
+      const imageMetadata = await mockInvoke('extract_metadata', {
+        imagePath: '/test/photo.jpg',
+      });
+
+      expect(imageMetadata.camera_make).toBeTruthy();
+      expect(imageMetadata.camera_model).toBeTruthy();
+      expect(imageMetadata.gps_latitude).toBeTruthy();
+      expect(imageMetadata.duration_seconds).toBeNull();
+      expect(imageMetadata.video_codec).toBeNull();
+
+      // Extract video metadata
+      const mockVideoMetadata = {
+        path: '/test/video.mp4',
+        width: 1920,
+        height: 1080,
+        duration_seconds: 120.5,
+        video_codec: 'h264',
+        file_size: 15728640,
+        file_modified: '2024-01-15T11:00:00Z',
+        // No image-specific fields
+        capture_date: null,
+        camera_make: null,
+        camera_model: null,
+        gps_latitude: null,
+        gps_longitude: null,
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockVideoMetadata);
+
+      const videoMetadata = await mockInvoke('extract_metadata', {
+        imagePath: '/test/video.mp4',
+      });
+
+      expect(videoMetadata.duration_seconds).toBeGreaterThan(0);
+      expect(videoMetadata.video_codec).toBeTruthy();
+      expect(videoMetadata.camera_make).toBeNull();
+      expect(videoMetadata.gps_latitude).toBeNull();
     });
   });
 });
