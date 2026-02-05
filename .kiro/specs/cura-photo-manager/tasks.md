@@ -682,7 +682,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 5.1 (extended)_
   
-  - [-] 25.4 Write unit test for video UI components
+  - [x] 25.4 Write unit test for video UI components
     - Test video grid rendering with video indicators
     - Test video detail view with player controls
     - Test media type filtering in search
@@ -691,7 +691,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 9.1, 9.2 (extended)_
 
 - [ ] 26. Update settings page for format configuration
-  - [~] 26.1 Add format configuration section to settings
+  - [-] 26.1 Add format configuration section to settings
     - Integrate FormatSelection component into settings page
     - Load current format configuration on page load
     - Save format configuration changes
