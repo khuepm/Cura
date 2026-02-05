@@ -736,7 +736,7 @@ This implementation plan breaks down the Cura media management application into 
   - create github commit for this task then push to github
 
 - [ ] 29. Update cloud sync for video support
-  - [-] 29.1 Extend sync to handle video files
+  - [x] 29.1 Extend sync to handle video files
     - Update sync_to_drive to handle video files
     - Compute checksums for video files
     - Upload videos to Google Drive
@@ -744,7 +744,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 8.1, 8.2, 8.3 (extended)_
   
-  - [~] 29.2 Write unit test for video file uploads
+  - [-] 29.2 Write unit test for video file uploads
     - Test uploading video files to Drive
     - Test checksum-based deduplication for videos
     - create github commit for this task then push to github

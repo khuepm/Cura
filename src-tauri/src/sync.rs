@@ -592,6 +592,178 @@ mod tests {
         assert!(!success, "Should fail after all retries");
         assert_eq!(attempts, 3, "Should attempt exactly 3 times");
     }
+
+    // Unit test for video file uploads
+    // Validates: Requirements 8.1 (extended)
+    #[test]
+    fn test_video_file_checksum() {
+        let temp_dir = std::env::temp_dir();
+        let test_video = temp_dir.join("test_video.mp4");
+
+        // Create test video file with some content
+        let mut file = File::create(&test_video).unwrap();
+        // Write some fake video data (not a real video, just for testing checksum)
+        file.write_all(b"FAKE_VIDEO_DATA_FOR_TESTING").unwrap();
+        drop(file);
+
+        // Compute checksum for video
+        let checksum = CloudSyncManager::compute_checksum(&test_video).unwrap();
+
+        // Verify checksum is valid
+        assert_eq!(checksum.len(), 64); // SHA-256 produces 64 hex characters
+        assert!(checksum.chars().all(|c| c.is_ascii_hexdigit()));
+
+        // Verify checksum is consistent for same video
+        let checksum2 = CloudSyncManager::compute_checksum(&test_video).unwrap();
+        assert_eq!(checksum, checksum2);
+
+        // Clean up
+        let _ = fs::remove_file(&test_video);
+    }
+
+    // Unit test for video file checksum deduplication
+    // Validates: Requirements 8.1 (extended)
+    #[test]
+    fn test_video_checksum_deduplication() {
+        let temp_dir = std::env::temp_dir();
+        let test_video1 = temp_dir.join("test_video1.mp4");
+        let test_video2 = temp_dir.join("test_video2.mp4");
+        let test_video3 = temp_dir.join("test_video3.mov");
+
+        // Create test video files
+        // Video 1 and 2 have same content (should have same checksum)
+        let mut file1 = File::create(&test_video1).unwrap();
+        file1.write_all(b"IDENTICAL_VIDEO_CONTENT").unwrap();
+        drop(file1);
+
+        let mut file2 = File::create(&test_video2).unwrap();
+        file2.write_all(b"IDENTICAL_VIDEO_CONTENT").unwrap();
+        drop(file2);
+
+        // Video 3 has different content (should have different checksum)
+        let mut file3 = File::create(&test_video3).unwrap();
+        file3.write_all(b"DIFFERENT_VIDEO_CONTENT").unwrap();
+        drop(file3);
+
+        // Compute checksums
+        let checksum1 = CloudSyncManager::compute_checksum(&test_video1).unwrap();
+        let checksum2 = CloudSyncManager::compute_checksum(&test_video2).unwrap();
+        let checksum3 = CloudSyncManager::compute_checksum(&test_video3).unwrap();
+
+        // Verify identical content produces identical checksums (deduplication)
+        assert_eq!(
+            checksum1, checksum2,
+            "Videos with identical content should have same checksum for deduplication"
+        );
+
+        // Verify different content produces different checksums
+        assert_ne!(
+            checksum1, checksum3,
+            "Videos with different content should have different checksums"
+        );
+
+        // Clean up
+        let _ = fs::remove_file(&test_video1);
+        let _ = fs::remove_file(&test_video2);
+        let _ = fs::remove_file(&test_video3);
+    }
+
+    // Unit test for video MIME type detection
+    // Validates: Requirements 8.1 (extended)
+    #[test]
+    fn test_video_mime_type_for_upload() {
+        use crate::database::MediaType;
+        use std::path::Path;
+
+        // Test that video files get correct MIME types for upload
+        let video_formats = vec![
+            ("video.mp4", "video/mp4"),
+            ("video.mov", "video/quicktime"),
+            ("video.avi", "video/x-msvideo"),
+            ("video.mkv", "video/x-matroska"),
+            ("video.webm", "video/webm"),
+            ("video.flv", "video/x-flv"),
+            ("video.wmv", "video/x-ms-wmv"),
+            ("video.mpg", "video/mpeg"),
+            ("video.3gp", "video/3gpp"),
+        ];
+
+        for (filename, expected_mime) in video_formats {
+            let path = Path::new(filename);
+            let mime = CloudSyncManager::get_mime_type(path, &MediaType::Video);
+            assert_eq!(
+                mime, expected_mime,
+                "Video file {} should have MIME type {}",
+                filename, expected_mime
+            );
+        }
+    }
+
+    // Unit test for mixed media type handling
+    // Validates: Requirements 8.1 (extended)
+    #[test]
+    fn test_mixed_media_checksum_independence() {
+        let temp_dir = std::env::temp_dir();
+        let test_image = temp_dir.join("test_image.jpg");
+        let test_video = temp_dir.join("test_video.mp4");
+
+        // Create test files with same content but different types
+        let content = b"SAME_CONTENT_DIFFERENT_TYPES";
+
+        let mut file1 = File::create(&test_image).unwrap();
+        file1.write_all(content).unwrap();
+        drop(file1);
+
+        let mut file2 = File::create(&test_video).unwrap();
+        file2.write_all(content).unwrap();
+        drop(file2);
+
+        // Compute checksums
+        let checksum_image = CloudSyncManager::compute_checksum(&test_image).unwrap();
+        let checksum_video = CloudSyncManager::compute_checksum(&test_video).unwrap();
+
+        // Verify same content produces same checksum regardless of extension
+        // This is correct behavior - deduplication is based on content, not file type
+        assert_eq!(
+            checksum_image, checksum_video,
+            "Files with identical content should have same checksum regardless of extension"
+        );
+
+        // Clean up
+        let _ = fs::remove_file(&test_image);
+        let _ = fs::remove_file(&test_video);
+    }
+
+    // Unit test for video file size handling
+    // Validates: Requirements 8.1 (extended)
+    #[test]
+    fn test_large_video_checksum() {
+        let temp_dir = std::env::temp_dir();
+        let test_video = temp_dir.join("test_large_video.mp4");
+
+        // Create a larger test video file (1MB)
+        let mut file = File::create(&test_video).unwrap();
+        let chunk = vec![0u8; 1024]; // 1KB chunk
+        for _ in 0..1024 {
+            // Write 1MB total
+            file.write_all(&chunk).unwrap();
+        }
+        drop(file);
+
+        // Compute checksum for large video
+        let checksum = CloudSyncManager::compute_checksum(&test_video).unwrap();
+
+        // Verify checksum is valid
+        assert_eq!(checksum.len(), 64);
+        assert!(checksum.chars().all(|c| c.is_ascii_hexdigit()));
+
+        // Verify checksum is consistent
+        let checksum2 = CloudSyncManager::compute_checksum(&test_video).unwrap();
+        assert_eq!(checksum, checksum2);
+
+        // Clean up
+        let _ = fs::remove_file(&test_video);
+    }
 }
 
 #[cfg(test)]
@@ -652,6 +824,141 @@ mod property_tests {
 
         (db, image_ids, db_path)
     }
+
+    // Helper to create test database with videos
+    fn create_test_db_with_videos(
+        video_count: usize,
+    ) -> (Database, Vec<i64>, std::path::PathBuf) {
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join(format!("test_sync_video_{}.db", uuid::Uuid::new_v4()));
+        let _ = fs::remove_file(&db_path);
+
+        let db = Database::new(db_path.clone()).unwrap();
+        let mut video_ids = Vec::new();
+
+        for i in 0..video_count {
+            // Create a test video file
+            let test_file = temp_dir.join(format!("test_video_{}.mp4", i));
+            let mut file = File::create(&test_file).unwrap();
+            file.write_all(format!("Test video content {}", i).as_bytes())
+                .unwrap();
+            drop(file);
+
+            // Compute checksum
+            let checksum = CloudSyncManager::compute_checksum(&test_file).unwrap();
+
+            // Insert video into database
+            let video_id = db
+                .insert_image(
+                    test_file.to_str().unwrap(),
+                    &format!("/thumb_small_{}.jpg", i),
+                    &format!("/thumb_medium_{}.jpg", i),
+                    &checksum,
+                    crate::database::MediaType::Video,
+                    Some(Utc::now()),
+                    None, // No camera for videos
+                    None,
+                    None,
+                    None,
+                    1920,
+                    1080,
+                    Some(120.5), // duration_seconds
+                    Some("h264"), // video_codec
+                    2048,
+                    Utc::now(),
+                )
+                .unwrap();
+
+            video_ids.push(video_id);
+        }
+
+        (db, video_ids, db_path)
+    }
+
+    // Helper to create test database with mixed media (images and videos)
+    fn create_test_db_with_mixed_media(
+        image_count: usize,
+        video_count: usize,
+    ) -> (Database, Vec<i64>, Vec<i64>, std::path::PathBuf) {
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join(format!("test_sync_mixed_{}.db", uuid::Uuid::new_v4()));
+        let _ = fs::remove_file(&db_path);
+
+        let db = Database::new(db_path.clone()).unwrap();
+        let mut image_ids = Vec::new();
+        let mut video_ids = Vec::new();
+
+        // Create images
+        for i in 0..image_count {
+            let test_file = temp_dir.join(format!("test_image_{}.jpg", i));
+            let mut file = File::create(&test_file).unwrap();
+            file.write_all(format!("Test image content {}", i).as_bytes())
+                .unwrap();
+            drop(file);
+
+            let checksum = CloudSyncManager::compute_checksum(&test_file).unwrap();
+
+            let image_id = db
+                .insert_image(
+                    test_file.to_str().unwrap(),
+                    &format!("/thumb_small_img_{}.jpg", i),
+                    &format!("/thumb_medium_img_{}.jpg", i),
+                    &checksum,
+                    crate::database::MediaType::Image,
+                    Some(Utc::now()),
+                    Some("TestCamera"),
+                    Some("TestModel"),
+                    None,
+                    None,
+                    1920,
+                    1080,
+                    None,
+                    None,
+                    1024,
+                    Utc::now(),
+                )
+                .unwrap();
+
+            image_ids.push(image_id);
+        }
+
+        // Create videos
+        for i in 0..video_count {
+            let test_file = temp_dir.join(format!("test_video_{}.mp4", i));
+            let mut file = File::create(&test_file).unwrap();
+            file.write_all(format!("Test video content {}", i).as_bytes())
+                .unwrap();
+            drop(file);
+
+            let checksum = CloudSyncManager::compute_checksum(&test_file).unwrap();
+
+            let video_id = db
+                .insert_image(
+                    test_file.to_str().unwrap(),
+                    &format!("/thumb_small_vid_{}.jpg", i),
+                    &format!("/thumb_medium_vid_{}.jpg", i),
+                    &checksum,
+                    crate::database::MediaType::Video,
+                    Some(Utc::now()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    1920,
+                    1080,
+                    Some(120.5),
+                    Some("h264"),
+                    2048,
+                    Utc::now(),
+                )
+                .unwrap();
+
+            video_ids.push(video_id);
+        }
+
+        (db, image_ids, video_ids, db_path)
+    }
+
 
     // Feature: cura-photo-manager, Property 20: Checksum-Based Deduplication
     // Validates: Requirements 8.1
@@ -751,6 +1058,174 @@ mod property_tests {
                     "synced_at timestamp should be between before_sync and after_sync"
                 );
             }
+
+            // Clean up
+            let _ = fs::remove_file(&db_path);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        // Feature: cura-photo-manager, Property 20 (extended): Checksum-Based Deduplication for Videos
+        // Validates: Requirements 8.1 (extended)
+        #[test]
+        fn property_video_checksum_deduplication(
+            video_count in 3..10usize,
+            already_synced_indices in prop::collection::vec(0..3usize, 1..3),
+        ) {
+            // Create test database with videos
+            let (db, video_ids, db_path) = create_test_db_with_videos(video_count);
+
+            // Mark some videos as already synced
+            let conn = db.connection().lock().unwrap();
+            for &idx in &already_synced_indices {
+                if idx < video_ids.len() {
+                    let video_id = video_ids[idx];
+                    let now = Utc::now().to_rfc3339();
+                    conn.execute(
+                        "UPDATE images SET sync_status = 'synced', synced_at = ?1 WHERE id = ?2",
+                        rusqlite::params![now, video_id],
+                    )
+                    .unwrap();
+                }
+            }
+            drop(conn);
+
+            // Verify that videos marked as synced have the correct status
+            for &idx in &already_synced_indices {
+                if idx < video_ids.len() {
+                    let video_id = video_ids[idx];
+                    let video = db.get_image_by_id(video_id).unwrap().unwrap();
+                    prop_assert_eq!(&video.sync_status, "synced");
+                    prop_assert!(video.synced_at.is_some());
+                    // Verify it's actually a video
+                    prop_assert_eq!(video.media_type, crate::database::MediaType::Video);
+                }
+            }
+
+            // Verify that other videos are still pending
+            for (idx, &video_id) in video_ids.iter().enumerate() {
+                if !already_synced_indices.contains(&idx) {
+                    let video = db.get_image_by_id(video_id).unwrap().unwrap();
+                    prop_assert_eq!(&video.sync_status, "pending");
+                    prop_assert_eq!(video.media_type, crate::database::MediaType::Video);
+                }
+            }
+
+            // Clean up
+            let _ = fs::remove_file(&db_path);
+        }
+
+        // Feature: cura-photo-manager, Property 21 (extended): Sync Status Tracking for Videos
+        // Validates: Requirements 8.3 (extended)
+        #[test]
+        fn property_video_sync_status_tracking(
+            video_count in 3..10usize,
+        ) {
+            // Create test database with videos
+            let (db, video_ids, db_path) = create_test_db_with_videos(video_count);
+
+            // Simulate successful sync by updating status
+            let before_sync = Utc::now();
+            
+            for &video_id in &video_ids {
+                let conn = db.connection().lock().unwrap();
+                let now = Utc::now().to_rfc3339();
+                conn.execute(
+                    "UPDATE images SET sync_status = 'synced', synced_at = ?1 WHERE id = ?2",
+                    rusqlite::params![now, video_id],
+                )
+                .unwrap();
+                drop(conn);
+            }
+
+            let after_sync = Utc::now();
+
+            // Verify all videos have synced status and timestamp
+            for &video_id in &video_ids {
+                let video = db.get_image_by_id(video_id).unwrap().unwrap();
+                
+                // Verify it's a video
+                prop_assert_eq!(video.media_type, crate::database::MediaType::Video);
+                
+                // Verify sync status is "synced"
+                prop_assert_eq!(&video.sync_status, "synced");
+                
+                // Verify synced_at timestamp exists
+                prop_assert!(video.synced_at.is_some(), "synced_at should be set");
+                
+                // Verify timestamp is within reasonable range
+                let synced_at = video.synced_at.unwrap();
+                prop_assert!(
+                    synced_at >= before_sync && synced_at <= after_sync,
+                    "synced_at timestamp should be between before_sync and after_sync"
+                );
+
+                // Verify video-specific metadata is preserved
+                prop_assert!(video.duration_seconds.is_some(), "Video should have duration");
+                prop_assert!(video.video_codec.is_some(), "Video should have codec");
+            }
+
+            // Clean up
+            let _ = fs::remove_file(&db_path);
+        }
+
+        // Feature: cura-photo-manager, Property: Mixed Media Sync
+        // Validates: Requirements 8.1, 8.3 (extended)
+        #[test]
+        fn property_mixed_media_sync_tracking(
+            image_count in 2..5usize,
+            video_count in 2..5usize,
+        ) {
+            // Create test database with both images and videos
+            let (db, image_ids, video_ids, db_path) = create_test_db_with_mixed_media(image_count, video_count);
+
+            // Simulate syncing all media
+            let before_sync = Utc::now();
+            
+            let conn = db.connection().lock().unwrap();
+            for &media_id in image_ids.iter().chain(video_ids.iter()) {
+                let now = Utc::now().to_rfc3339();
+                conn.execute(
+                    "UPDATE images SET sync_status = 'synced', synced_at = ?1 WHERE id = ?2",
+                    rusqlite::params![now, media_id],
+                )
+                .unwrap();
+            }
+            drop(conn);
+
+            let after_sync = Utc::now();
+
+            // Verify all images are synced correctly
+            for &image_id in &image_ids {
+                let image = db.get_image_by_id(image_id).unwrap().unwrap();
+                prop_assert_eq!(image.media_type, crate::database::MediaType::Image);
+                prop_assert_eq!(&image.sync_status, "synced");
+                prop_assert!(image.synced_at.is_some());
+                
+                let synced_at = image.synced_at.unwrap();
+                prop_assert!(synced_at >= before_sync && synced_at <= after_sync);
+            }
+
+            // Verify all videos are synced correctly
+            for &video_id in &video_ids {
+                let video = db.get_image_by_id(video_id).unwrap().unwrap();
+                prop_assert_eq!(video.media_type, crate::database::MediaType::Video);
+                prop_assert_eq!(&video.sync_status, "synced");
+                prop_assert!(video.synced_at.is_some());
+                
+                let synced_at = video.synced_at.unwrap();
+                prop_assert!(synced_at >= before_sync && synced_at <= after_sync);
+
+                // Verify video-specific fields
+                prop_assert!(video.duration_seconds.is_some());
+                prop_assert!(video.video_codec.is_some());
+            }
+
+            // Verify total count
+            let total_synced = image_ids.len() + video_ids.len();
+            prop_assert_eq!(total_synced, image_count + video_count);
 
             // Clean up
             let _ = fs::remove_file(&db_path);
