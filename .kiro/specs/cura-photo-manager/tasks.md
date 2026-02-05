@@ -550,7 +550,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 12.4_
 
 - [ ] 21. Update media scanner for video support
-  - [~] 21.1 Extend scanner to handle video files
+  - [-] 21.1 Extend scanner to handle video files
     - Update scan_folder command to accept FormatConfig parameter
     - Add video format filtering based on configuration
     - Determine media type (image/video) based on file extension

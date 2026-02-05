@@ -27,10 +27,12 @@ describe('Integration Tests - Complete User Flows', () => {
       // Step 1: Scan folder
       const mockScanResult = {
         images: [
-          { path: '/test/image1.jpg' },
-          { path: '/test/image2.png' },
+          { path: '/test/image1.jpg', media_type: 'image' },
+          { path: '/test/image2.png', media_type: 'image' },
         ],
         total_count: 2,
+        image_count: 2,
+        video_count: 0,
         errors: [],
       };
 
@@ -41,7 +43,9 @@ describe('Integration Tests - Complete User Flows', () => {
       });
 
       expect(scanResult.total_count).toBe(2);
-      expect(scanResult.images).toHaveLength(2);
+      expect(scanResult.media_files).toHaveLength(2);
+      expect(scanResult.image_count).toBe(2);
+      expect(scanResult.video_count).toBe(0);
 
       // Step 2: Extract metadata for each image
       const mockMetadata = {
@@ -88,8 +92,10 @@ describe('Integration Tests - Complete User Flows', () => {
     it('should handle errors gracefully during import', async () => {
       // Simulate scan with some errors
       const mockScanResult = {
-        images: [{ path: '/test/image1.jpg' }],
+        media_files: [{ path: '/test/image1.jpg', media_type: 'image' }],
         total_count: 1,
+        image_count: 1,
+        video_count: 0,
         errors: [
           {
             path: '/test/corrupt.jpg',

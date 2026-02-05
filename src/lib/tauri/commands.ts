@@ -1,15 +1,29 @@
 import { invoke } from '@tauri-apps/api/core';
 
 // Rust backend types
+export type MediaType = 'image' | 'video';
+
+export interface MediaFile {
+  path: string;
+  media_type: MediaType;
+}
+
 export interface ScanResult {
-  images: string[];
+  media_files: MediaFile[];
   total_count: number;
+  image_count: number;
+  video_count: number;
   errors: ScanError[];
 }
 
 export interface ScanError {
   path: string;
   message: string;
+}
+
+export interface FormatConfig {
+  image_formats: string[];
+  video_formats: string[];
 }
 
 export interface RustImageMetadata {
@@ -31,14 +45,19 @@ export interface ThumbnailPaths {
 }
 
 /**
- * Scan a folder for images
+ * Scan a folder for media files (images and videos)
  * @param folderPath - Path to the folder to scan
- * @returns ScanResult with discovered images and errors
+ * @param config - Optional format configuration
+ * @returns ScanResult with discovered media files and errors
  */
-export async function scanFolder(folderPath: string): Promise<ScanResult> {
+export async function scanFolder(
+  folderPath: string,
+  config?: FormatConfig
+): Promise<ScanResult> {
   try {
     const result = await invoke<ScanResult>('scan_folder', {
       folderPath,
+      config: config || null,
     });
     return result;
   } catch (error) {

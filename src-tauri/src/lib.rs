@@ -13,14 +13,20 @@ mod updater;
 use tauri::Manager;
 use tauri::Emitter;
 
-/// Tauri command to scan a folder for images
+/// Tauri command to scan a folder for media files (images and videos)
 #[tauri::command]
-fn scan_folder(folder_path: String) -> Result<scanner::ScanResult, String> {
+fn scan_folder(folder_path: String, config: Option<settings::FormatConfig>) -> Result<scanner::ScanResult, String> {
     logging::log_info("scanner", &format!("Starting scan of folder: {}", folder_path));
     
-    match scanner::scan_folder(&folder_path) {
+    match scanner::scan_folder(&folder_path, config) {
         Ok(result) => {
-            logging::log_info("scanner", &format!("Scan completed: {} images found, {} errors", result.total_count, result.errors.len()));
+            logging::log_info("scanner", &format!(
+                "Scan completed: {} total media files found ({} images, {} videos), {} errors", 
+                result.total_count, 
+                result.image_count, 
+                result.video_count, 
+                result.errors.len()
+            ));
             
             // Log any errors encountered during scanning
             for error in &result.errors {

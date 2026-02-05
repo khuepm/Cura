@@ -85,13 +85,13 @@ export function useFolderImport() {
         const batchSize = 10;
         const images: ImageRecord[] = [];
 
-        for (let i = 0; i < scanResult.images.length; i += batchSize) {
-          const batch = scanResult.images.slice(i, i + batchSize);
+        for (let i = 0; i < scanResult.media_files.length; i += batchSize) {
+          const batch = scanResult.media_files.slice(i, i + batchSize);
 
           // Process batch in parallel
           const processedBatch = await Promise.all(
-            batch.map((imagePath, index) =>
-              processImage(imagePath, i + index + 1)
+            batch.map((mediaFile, index) =>
+              processImage(mediaFile.path, i + index + 1)
             )
           );
 
@@ -118,7 +118,7 @@ export function useFolderImport() {
             type: 'SET_SCAN_PROGRESS',
             payload: {
               count: i + batch.length,
-              currentFile: batch[batch.length - 1] || '',
+              currentFile: batch[batch.length - 1]?.path || '',
             },
           });
         }
