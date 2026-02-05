@@ -1,5 +1,6 @@
 mod auth;
 mod database;
+mod ffmpeg;
 mod logging;
 mod metadata;
 mod migrations;
@@ -483,6 +484,8 @@ pub fn run() {
       settings::get_format_config,
       settings::set_format_config,
       settings::get_default_formats,
+      ffmpeg::check_ffmpeg,
+      ffmpeg::get_ffmpeg_install_instructions,
       updater::check_for_updates,
       updater::install_update
     ])
@@ -561,6 +564,21 @@ pub fn run() {
       // Verify startup time meets requirement (< 3000ms)
       if startup_time > 3000 {
         logging::log_warning("app", &format!("Startup time {}ms exceeds target of 3000ms", startup_time));
+      }
+
+      // Check FFmpeg availability on startup
+      let ffmpeg_status = ffmpeg::check_ffmpeg_availability();
+      if ffmpeg_status.available {
+        if let Some(version) = &ffmpeg_status.version {
+          logging::log_info("ffmpeg", &format!("FFmpeg is available: {}", version));
+        } else {
+          logging::log_info("ffmpeg", "FFmpeg is available");
+        }
+      } else {
+        logging::log_warning("ffmpeg", "FFmpeg is not available - video thumbnail generation will be disabled");
+        if let Some(error) = &ffmpeg_status.error {
+          logging::log_warning("ffmpeg", error);
+        }
       }
 
       // Check for updates on startup (async, non-blocking)

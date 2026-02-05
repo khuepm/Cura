@@ -573,7 +573,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 1.4 (extended)_
 
 - [ ] 22. Implement video thumbnail extraction
-  - [~] 22.1 Set up FFmpeg integration
+  - [-] 22.1 Set up FFmpeg integration
     - Add ffmpeg-next or ffmpeg-sidecar crate dependency
     - Implement FFmpeg availability check on startup
     - Display error message if FFmpeg not found

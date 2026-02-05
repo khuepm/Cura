@@ -40,6 +40,9 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
 
+# Video processing
+ffmpeg-sidecar = "2.0"
+
 # OAuth and cloud sync
 oauth2 = "4.4"
 keyring = "3.6"

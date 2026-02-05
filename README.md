@@ -4,12 +4,14 @@ A desktop photo management application built with Tauri (Rust backend) and Next.
 
 ## Features
 
-- Automated image scanning and metadata extraction
+- Automated image and video scanning with metadata extraction
 - AI-powered image classification using Transformers.js
-- Fast thumbnail generation with caching
+- Fast thumbnail generation with caching (images and videos)
 - Natural language search with CLIP
 - Google Drive cloud synchronization
 - SQLite database for efficient metadata storage
+- Support for multiple image formats (JPEG, PNG, HEIC, RAW)
+- Support for multiple video formats (MP4, MOV, AVI, MKV, etc.)
 
 ## Tech Stack
 
@@ -20,6 +22,7 @@ A desktop photo management application built with Tauri (Rust backend) and Next.
 - **rayon**: Parallel processing
 - **walkdir**: Directory traversal
 - **rusqlite**: SQLite database
+- **ffmpeg-sidecar**: Video frame extraction
 - **proptest**: Property-based testing
 
 ### Frontend (Next.js/React)
@@ -36,15 +39,22 @@ A desktop photo management application built with Tauri (Rust backend) and Next.
 - Node.js 20+ and npm/pnpm
 - Rust 1.77.2+
 - Cargo
+- **FFmpeg** (required for video thumbnail generation)
+  - See [FFmpeg Installation Guide](docs/FFMPEG_INSTALLATION.md) for detailed instructions
 
 ### Installation
 
-1. Install dependencies:
+1. Install FFmpeg (if not already installed):
+   - **Windows**: `choco install ffmpeg` or see [installation guide](docs/FFMPEG_INSTALLATION.md)
+   - **macOS**: `brew install ffmpeg`
+   - **Linux**: `sudo apt install ffmpeg` (Ubuntu/Debian)
+
+2. Install dependencies:
 ```bash
 npm install
 ```
 
-2. Run in development mode:
+3. Run in development mode:
 ```bash
 npm run tauri dev
 ```
