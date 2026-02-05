@@ -637,7 +637,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 2.2 (extended)_
 
 - [ ] 24. Update database operations for video support
-  - [-] 24.1 Extend database functions for media type
+  - [x] 24.1 Extend database functions for media type
     - Update insert_image function to accept media_type parameter
     - Update insert_image function to accept video metadata (duration, codec)
     - Update query functions to support media_type filtering
@@ -645,14 +645,14 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 6.1, 6.2 (extended)_
   
-  - [~] 24.2 Write property test for media type filtering
+  - [x] 24.2 Write property test for media type filtering
     - **Property 30: Media Type Filtering**
     - **Validates: Requirements 6.2 (extended)**
     - Insert mix of images and videos
     - Test filtering by media_type (image, video, all)
     - Verify only matching media types are returned
   
-  - [~] 24.3 Write unit test for video record insertion
+  - [-] 24.3 Write unit test for video record insertion
     - Test inserting video records with all metadata fields
     - Verify video-specific fields are stored correctly
     - create github commit for this task then push to github

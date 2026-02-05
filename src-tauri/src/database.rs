@@ -743,6 +743,129 @@ mod tests {
         // Clean up
         let _ = fs::remove_file(&db_path);
     }
+
+    /// Test inserting video records with all metadata fields
+    /// Verifies that video-specific fields (duration_seconds, video_codec) are stored correctly
+    /// 
+    /// **Validates: Requirements 6.1 (extended)**
+    #[test]
+    fn test_insert_and_retrieve_video() {
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join("test_cura_video_insert.db");
+        let _ = fs::remove_file(&db_path);
+
+        let db = Database::new(db_path.clone()).unwrap();
+
+        // Insert a video record with all metadata fields
+        let now = Utc::now();
+        let video_id = db.insert_image(
+            "/path/to/video.mp4",
+            "/path/to/video_thumb_small.jpg",
+            "/path/to/video_thumb_medium.jpg",
+            "video_checksum_123",
+            MediaType::Video,
+            Some(now),
+            None, // Videos typically don't have camera make
+            None, // Videos typically don't have camera model
+            Some(34.0522), // GPS latitude (Los Angeles)
+            Some(-118.2437), // GPS longitude
+            1920,
+            1080,
+            Some(125.5), // duration_seconds
+            Some("h264"), // video_codec
+            5242880, // file_size (5MB)
+            now,
+        ).unwrap();
+
+        assert!(video_id > 0, "Video ID should be positive");
+
+        // Retrieve by ID and verify all fields
+        let video = db.get_image_by_id(video_id).unwrap().unwrap();
+        assert_eq!(video.path, "/path/to/video.mp4");
+        assert_eq!(video.media_type, MediaType::Video);
+        assert_eq!(video.thumbnail_small, "/path/to/video_thumb_small.jpg");
+        assert_eq!(video.thumbnail_medium, "/path/to/video_thumb_medium.jpg");
+        assert_eq!(video.checksum, "video_checksum_123");
+        assert_eq!(video.width, 1920);
+        assert_eq!(video.height, 1080);
+        assert_eq!(video.file_size, 5242880);
+        
+        // Verify video-specific fields
+        assert!(video.duration_seconds.is_some(), "Video should have duration");
+        assert_eq!(video.duration_seconds.unwrap(), 125.5);
+        assert!(video.video_codec.is_some(), "Video should have codec");
+        assert_eq!(video.video_codec.unwrap(), "h264");
+        
+        // Verify GPS coordinates
+        assert_eq!(video.gps_latitude, Some(34.0522));
+        assert_eq!(video.gps_longitude, Some(-118.2437));
+        
+        // Verify camera fields are None for videos
+        assert!(video.camera_make.is_none(), "Video should not have camera make");
+        assert!(video.camera_model.is_none(), "Video should not have camera model");
+
+        // Retrieve by path
+        let video2 = db.get_image_by_path("/path/to/video.mp4").unwrap().unwrap();
+        assert_eq!(video2.id, video_id);
+        assert_eq!(video2.media_type, MediaType::Video);
+        assert_eq!(video2.duration_seconds, Some(125.5));
+        assert_eq!(video2.video_codec, Some("h264".to_string()));
+
+        // Retrieve by checksum
+        let video3 = db.get_image_by_checksum("video_checksum_123").unwrap().unwrap();
+        assert_eq!(video3.id, video_id);
+        assert_eq!(video3.media_type, MediaType::Video);
+
+        // Test inserting another video with different metadata
+        let video2_id = db.insert_image(
+            "/path/to/another_video.mkv",
+            "/path/to/another_thumb_small.jpg",
+            "/path/to/another_thumb_medium.jpg",
+            "video_checksum_456",
+            MediaType::Video,
+            Some(now - chrono::Duration::hours(2)),
+            None,
+            None,
+            None, // No GPS data
+            None,
+            3840,
+            2160,
+            Some(300.75), // 5 minutes
+            Some("hevc"), // H.265 codec
+            15728640, // 15MB
+            now - chrono::Duration::hours(2),
+        ).unwrap();
+
+        assert!(video2_id > 0);
+        assert_ne!(video2_id, video_id, "Should create a new record");
+
+        let video2_retrieved = db.get_image_by_id(video2_id).unwrap().unwrap();
+        assert_eq!(video2_retrieved.media_type, MediaType::Video);
+        assert_eq!(video2_retrieved.width, 3840);
+        assert_eq!(video2_retrieved.height, 2160);
+        assert_eq!(video2_retrieved.duration_seconds, Some(300.75));
+        assert_eq!(video2_retrieved.video_codec, Some("hevc".to_string()));
+        assert!(video2_retrieved.gps_latitude.is_none());
+        assert!(video2_retrieved.gps_longitude.is_none());
+
+        // Query videos by media type
+        let filter = ImageFilter {
+            media_type: Some(MediaType::Video),
+            ..Default::default()
+        };
+        let videos = db.query_images(&filter).unwrap();
+        assert_eq!(videos.len(), 2, "Should find both video records");
+        
+        // Verify both videos have video-specific fields
+        for video in &videos {
+            assert_eq!(video.media_type, MediaType::Video);
+            assert!(video.duration_seconds.is_some(), "All videos should have duration");
+            assert!(video.video_codec.is_some(), "All videos should have codec");
+        }
+
+        // Clean up
+        let _ = fs::remove_file(&db_path);
+    }
 }
 
 #[cfg(test)]
@@ -1205,6 +1328,174 @@ mod property_tests {
             // Verify no duplicate was created
             let by_checksum = db.get_image_by_checksum(&metadata.checksum).unwrap().unwrap();
             prop_assert_eq!(by_checksum.id, image_id, "Should be the same image, not a duplicate");
+
+            // Clean up
+            let _ = fs::remove_file(&db_path);
+        }
+
+        // Feature: cura-photo-manager, Property 30: Media Type Filtering
+        // Validates: Requirements 6.2 (extended)
+        #[test]
+        fn property_media_type_filtering(
+            image_count in 2..10usize,
+            video_count in 2..10usize,
+        ) {
+            let temp_dir = std::env::temp_dir();
+            let db_path = temp_dir.join(format!("test_media_type_{}.db", uuid::Uuid::new_v4()));
+            let _ = fs::remove_file(&db_path);
+
+            let db = Database::new(db_path.clone()).unwrap();
+
+            // Generate test images
+            let images: Vec<TestImageData> = (0..image_count)
+                .map(|i| TestImageData {
+                    path: format!("test_image_{}.jpg", i),
+                    thumbnail_small: format!("thumb_small_img_{}.jpg", i),
+                    thumbnail_medium: format!("thumb_medium_img_{}.jpg", i),
+                    checksum: format!("checksum_img_{}", i),
+                    media_type: MediaType::Image,
+                    capture_date: Some(Utc::now()),
+                    camera_make: Some("TestCamera".to_string()),
+                    camera_model: Some("Model1".to_string()),
+                    gps_latitude: Some(37.7749),
+                    gps_longitude: Some(-122.4194),
+                    width: 1920,
+                    height: 1080,
+                    duration_seconds: None,
+                    video_codec: None,
+                    file_size: 1024000,
+                    file_modified: Utc::now(),
+                })
+                .collect();
+
+            // Generate test videos
+            let videos: Vec<TestImageData> = (0..video_count)
+                .map(|i| TestImageData {
+                    path: format!("test_video_{}.mp4", i),
+                    thumbnail_small: format!("thumb_small_vid_{}.jpg", i),
+                    thumbnail_medium: format!("thumb_medium_vid_{}.jpg", i),
+                    checksum: format!("checksum_vid_{}", i),
+                    media_type: MediaType::Video,
+                    capture_date: Some(Utc::now()),
+                    camera_make: None,
+                    camera_model: None,
+                    gps_latitude: None,
+                    gps_longitude: None,
+                    width: 1920,
+                    height: 1080,
+                    duration_seconds: Some(120.5),
+                    video_codec: Some("h264".to_string()),
+                    file_size: 5024000,
+                    file_modified: Utc::now(),
+                })
+                .collect();
+
+            // Insert all images
+            let mut image_ids = Vec::new();
+            for metadata in &images {
+                let image_id = db.insert_image(
+                    &metadata.path,
+                    &metadata.thumbnail_small,
+                    &metadata.thumbnail_medium,
+                    &metadata.checksum,
+                    metadata.media_type.clone(),
+                    metadata.capture_date,
+                    metadata.camera_make.as_deref(),
+                    metadata.camera_model.as_deref(),
+                    metadata.gps_latitude,
+                    metadata.gps_longitude,
+                    metadata.width,
+                    metadata.height,
+                    metadata.duration_seconds,
+                    metadata.video_codec.as_deref(),
+                    metadata.file_size,
+                    metadata.file_modified,
+                ).unwrap();
+                image_ids.push(image_id);
+            }
+
+            // Insert all videos
+            let mut video_ids = Vec::new();
+            for metadata in &videos {
+                let video_id = db.insert_image(
+                    &metadata.path,
+                    &metadata.thumbnail_small,
+                    &metadata.thumbnail_medium,
+                    &metadata.checksum,
+                    metadata.media_type.clone(),
+                    metadata.capture_date,
+                    metadata.camera_make.as_deref(),
+                    metadata.camera_model.as_deref(),
+                    metadata.gps_latitude,
+                    metadata.gps_longitude,
+                    metadata.width,
+                    metadata.height,
+                    metadata.duration_seconds,
+                    metadata.video_codec.as_deref(),
+                    metadata.file_size,
+                    metadata.file_modified,
+                ).unwrap();
+                video_ids.push(video_id);
+            }
+
+            // Test 1: Filter by media_type = Image
+            let filter = ImageFilter {
+                media_type: Some(MediaType::Image),
+                ..Default::default()
+            };
+            let results = db.query_images(&filter).unwrap();
+            
+            // Verify only images are returned
+            prop_assert_eq!(results.len(), image_count, 
+                "Should return exactly {} images", image_count);
+            for result in &results {
+                prop_assert_eq!(&result.media_type, &MediaType::Image, 
+                    "Result should be an image, got {:?}", result.media_type);
+                prop_assert!(image_ids.contains(&result.id), 
+                    "Result ID {} should be in image_ids", result.id);
+            }
+
+            // Test 2: Filter by media_type = Video
+            let filter = ImageFilter {
+                media_type: Some(MediaType::Video),
+                ..Default::default()
+            };
+            let results = db.query_images(&filter).unwrap();
+            
+            // Verify only videos are returned
+            prop_assert_eq!(results.len(), video_count, 
+                "Should return exactly {} videos", video_count);
+            for result in &results {
+                prop_assert_eq!(&result.media_type, &MediaType::Video, 
+                    "Result should be a video, got {:?}", result.media_type);
+                prop_assert!(video_ids.contains(&result.id), 
+                    "Result ID {} should be in video_ids", result.id);
+                // Verify video-specific fields are present
+                prop_assert!(result.duration_seconds.is_some(), 
+                    "Video should have duration");
+                prop_assert!(result.video_codec.is_some(), 
+                    "Video should have codec");
+            }
+
+            // Test 3: No filter (all media types)
+            let filter = ImageFilter {
+                media_type: None,
+                ..Default::default()
+            };
+            let results = db.query_images(&filter).unwrap();
+            
+            // Verify all media are returned
+            prop_assert_eq!(results.len(), image_count + video_count, 
+                "Should return all {} media items", image_count + video_count);
+            
+            // Count images and videos in results
+            let result_images = results.iter().filter(|r| r.media_type == MediaType::Image).count();
+            let result_videos = results.iter().filter(|r| r.media_type == MediaType::Video).count();
+            
+            prop_assert_eq!(result_images, image_count, 
+                "Should have {} images in unfiltered results", image_count);
+            prop_assert_eq!(result_videos, video_count, 
+                "Should have {} videos in unfiltered results", video_count);
 
             // Clean up
             let _ = fs::remove_file(&db_path);
