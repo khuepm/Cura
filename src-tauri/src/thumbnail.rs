@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
+use std::process::Command;
+use std::io::Cursor;
 
 /// Thumbnail sizes
 const THUMBNAIL_SMALL_WIDTH: u32 = 150;
@@ -235,6 +237,142 @@ fn generate_thumbnail_size(
     Ok(())
 }
 
+/// Generate thumbnails for a video file by extracting a frame
+/// Returns paths to both small and medium thumbnails
+pub fn generate_video_thumbnails(
+    video_path: &str,
+    cache_dir: &Path,
+) -> Result<ThumbnailPaths, String> {
+    let path = Path::new(video_path);
+
+    if !path.exists() {
+        return Err(format!("Video file does not exist: {}", video_path));
+    }
+
+    if !path.is_file() {
+        return Err(format!("Path is not a file: {}", video_path));
+    }
+
+    // Get file metadata for mtime comparison
+    let file_metadata = fs::metadata(path)
+        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
+    let file_mtime = file_metadata
+        .modified()
+        .map_err(|e| format!("Failed to read file modified time: {}", e))?;
+
+    // Compute checksum for the file
+    let checksum = compute_checksum(path)?;
+
+    // Create cache directory if it doesn't exist
+    fs::create_dir_all(cache_dir)
+        .map_err(|e| format!("Failed to create cache directory: {}", e))?;
+
+    // Generate thumbnail paths
+    let small_path = cache_dir.join(format!("{}_small.jpg", checksum));
+    let medium_path = cache_dir.join(format!("{}_medium.jpg", checksum));
+
+    // Check if thumbnails already exist and source file is unchanged
+    let should_regenerate = should_regenerate_thumbnails(
+        &small_path,
+        &medium_path,
+        &file_mtime,
+    );
+
+    if !should_regenerate {
+        // Return existing thumbnail paths
+        return Ok(ThumbnailPaths {
+            small: small_path.to_string_lossy().to_string(),
+            medium: medium_path.to_string_lossy().to_string(),
+        });
+    }
+
+    // Extract frame from video using FFmpeg
+    let frame_data = extract_video_frame(path)?;
+
+    // Decode the extracted frame
+    let img = ImageReader::new(Cursor::new(frame_data))
+        .with_guessed_format()
+        .map_err(|e| format!("Failed to guess image format: {}", e))?
+        .decode()
+        .map_err(|e| format!("Failed to decode video frame: {}", e))?;
+
+    // Generate small thumbnail
+    generate_thumbnail_size(&img, &small_path, THUMBNAIL_SMALL_WIDTH)?;
+
+    // Generate medium thumbnail
+    generate_thumbnail_size(&img, &medium_path, THUMBNAIL_MEDIUM_WIDTH)?;
+
+    Ok(ThumbnailPaths {
+        small: small_path.to_string_lossy().to_string(),
+        medium: medium_path.to_string_lossy().to_string(),
+    })
+}
+
+/// Extract a frame from a video file using FFmpeg
+/// Extracts frame at 5 seconds, or first frame if video is shorter
+fn extract_video_frame(video_path: &Path) -> Result<Vec<u8>, String> {
+    // First, get video duration to determine if we should extract at 5 seconds or first frame
+    let duration = get_video_duration(video_path)?;
+    
+    // Determine seek time: 5 seconds if video is longer, otherwise 0 (first frame)
+    let seek_time = if duration >= 5.0 { "5" } else { "0" };
+
+    // Run FFmpeg to extract a single frame
+    // Command: ffmpeg -ss {seek_time} -i {video_path} -vframes 1 -f image2pipe -
+    let output = Command::new("ffmpeg")
+        .arg("-ss")
+        .arg(seek_time)
+        .arg("-i")
+        .arg(video_path)
+        .arg("-vframes")
+        .arg("1")
+        .arg("-f")
+        .arg("image2pipe")
+        .arg("-")
+        .output()
+        .map_err(|e| format!("Failed to execute FFmpeg: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("FFmpeg failed to extract frame: {}", stderr));
+    }
+
+    if output.stdout.is_empty() {
+        return Err("FFmpeg returned empty frame data. Video may not have a video stream.".to_string());
+    }
+
+    Ok(output.stdout)
+}
+
+/// Get the duration of a video file in seconds using FFmpeg
+fn get_video_duration(video_path: &Path) -> Result<f64, String> {
+    // Use ffprobe to get video duration
+    // Command: ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {video_path}
+    let output = Command::new("ffprobe")
+        .arg("-v")
+        .arg("error")
+        .arg("-show_entries")
+        .arg("format=duration")
+        .arg("-of")
+        .arg("default=noprint_wrappers=1:nokey=1")
+        .arg(video_path)
+        .output()
+        .map_err(|e| format!("Failed to execute ffprobe: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffprobe failed to get duration: {}", stderr));
+    }
+
+    let duration_str = String::from_utf8_lossy(&output.stdout);
+    let duration = duration_str
+        .trim()
+        .parse::<f64>()
+        .map_err(|e| format!("Failed to parse video duration: {}", e))?;
+
+    Ok(duration)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -409,6 +547,31 @@ mod tests {
         // Verify that an error is returned
         assert!(result.is_err(), "Should return error for empty file");
     }
+
+    #[test]
+    fn test_video_thumbnail_generation_file_not_found() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        let result = generate_video_thumbnails("/nonexistent/video.mp4", &cache_dir);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("does not exist"));
+    }
+
+    #[test]
+    fn test_video_thumbnail_generation_not_a_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        // Try to generate thumbnails from a directory
+        let result = generate_video_thumbnails(temp_dir.path().to_str().unwrap(), &cache_dir);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not a file"));
+    }
+
+    // Note: Testing actual video thumbnail extraction requires FFmpeg to be installed
+    // and a valid video file. These tests would be integration tests rather than unit tests.
+    // The core logic is tested above, and the FFmpeg integration would be tested separately.
 }
 
 

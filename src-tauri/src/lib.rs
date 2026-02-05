@@ -94,6 +94,38 @@ fn generate_thumbnails(
     }
 }
 
+/// Tauri command to generate thumbnails for a video file
+#[tauri::command]
+fn generate_video_thumbnails(
+    video_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<thumbnail::ThumbnailPaths, String> {
+    logging::log_debug("thumbnail", &format!("Generating video thumbnails for: {}", video_path));
+    
+    // Get the app data directory for thumbnail cache
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| {
+            logging::log_error("thumbnail", "Failed to get app data directory", &e);
+            logging::user_friendly_error(&e)
+        })?;
+    
+    let cache_dir = app_data_dir.join("thumbnails");
+    
+    match thumbnail::generate_video_thumbnails(&video_path, &cache_dir) {
+        Ok(paths) => {
+            logging::log_debug("thumbnail", &format!("Video thumbnails generated successfully for: {}", video_path));
+            Ok(paths)
+        }
+        Err(e) => {
+            let io_error = std::io::Error::new(std::io::ErrorKind::Other, e.clone());
+            logging::log_error("thumbnail", &format!("Failed to generate video thumbnails for: {}", video_path), &io_error);
+            Err(logging::user_friendly_error(&io_error))
+        }
+    }
+}
+
 /// Tauri command to save tags for an image
 #[tauri::command]
 fn save_tags(
@@ -468,7 +500,8 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       scan_folder, 
       extract_metadata, 
-      generate_thumbnails, 
+      generate_thumbnails,
+      generate_video_thumbnails,
       save_tags,
       search_images,
       get_image_tags,

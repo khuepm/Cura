@@ -573,7 +573,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 1.4 (extended)_
 
 - [ ] 22. Implement video thumbnail extraction
-  - [-] 22.1 Set up FFmpeg integration
+  - [x] 22.1 Set up FFmpeg integration
     - Add ffmpeg-next or ffmpeg-sidecar crate dependency
     - Implement FFmpeg availability check on startup
     - Display error message if FFmpeg not found
@@ -581,7 +581,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 3.1 (extended)_
   
-  - [~] 22.2 Create video thumbnail extractor module
+  - [-] 22.2 Create video thumbnail extractor module
     - Implement generate_video_thumbnails Tauri command
     - Extract frame at 5 seconds using FFmpeg: `ffmpeg -ss 5 -i {video_path} -vframes 1 -f image2pipe -`
     - Handle videos shorter than 5 seconds by extracting first frame
