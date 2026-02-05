@@ -489,7 +489,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: All_
 
 - [ ] 19. Add video support - Database migration
-  - [-] 19.1 Create database migration for video support
+  - [x] 19.1 Create database migration for video support
     - Add migration script to add media_type column (default 'image')
     - Add migration script to add duration_seconds column (nullable)
     - Add migration script to add video_codec column (nullable)
@@ -499,7 +499,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 1.4 (extended), 2.1 (extended)_
   
-  - [~] 19.2 Write unit test for database migration
+  - [x] 19.2 Write unit test for database migration
     - Test migration on database with existing image records
     - Verify all existing records have media_type='image'
     - Verify new columns are added correctly
