@@ -675,14 +675,14 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 9.2 (extended)_
   
-  - [-] 25.3 Update search interface for media type filtering
+  - [x] 25.3 Update search interface for media type filtering
     - Add media type filter chip (All, Images, Videos)
     - Update search query to include media_type parameter
     - Display media type in search results
     - create github commit for this task then push to github
     - _Requirements: 5.1 (extended)_
   
-  - [~] 25.4 Write unit test for video UI components
+  - [-] 25.4 Write unit test for video UI components
     - Test video grid rendering with video indicators
     - Test video detail view with player controls
     - Test media type filtering in search
