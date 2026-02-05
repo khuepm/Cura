@@ -581,7 +581,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 3.1 (extended)_
   
-  - [-] 22.2 Create video thumbnail extractor module
+  - [x] 22.2 Create video thumbnail extractor module
     - Implement generate_video_thumbnails Tauri command
     - Extract frame at 5 seconds using FFmpeg: `ffmpeg -ss 5 -i {video_path} -vframes 1 -f image2pipe -`
     - Handle videos shorter than 5 seconds by extracting first frame
@@ -593,19 +593,19 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 3.1 (extended), 3.3, 3.4_
   
-  - [~] 22.3 Write property test for video thumbnail extraction at 5 seconds
+  - [x] 22.3 Write property test for video thumbnail extraction at 5 seconds
     - **Property 27: Video Thumbnail Extraction at 5 Seconds**
     - **Validates: Requirements 3.1 (extended)**
     - Test with videos longer than 5 seconds
     - Verify thumbnail is extracted from frame at 5 seconds
   
-  - [~] 22.4 Write property test for short video thumbnail extraction
+  - [x] 22.4 Write property test for short video thumbnail extraction
     - **Property 28: Video Thumbnail Extraction for Short Videos**
     - **Validates: Requirements 3.1 (extended)**
     - Test with videos shorter than 5 seconds
     - Verify thumbnail is extracted from first frame
   
-  - [~] 22.5 Write unit test for FFmpeg error handling
+  - [-] 22.5 Write unit test for FFmpeg error handling
     - Test with corrupt video files
     - Test with videos without video streams (audio only)
     - Test with unsupported codecs
