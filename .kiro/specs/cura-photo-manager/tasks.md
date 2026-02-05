@@ -736,7 +736,7 @@ This implementation plan breaks down the Cura media management application into 
   - create github commit for this task then push to github
 
 - [ ] 29. Update cloud sync for video support
-  - [~] 29.1 Extend sync to handle video files
+  - [-] 29.1 Extend sync to handle video files
     - Update sync_to_drive to handle video files
     - Compute checksums for video files
     - Upload videos to Google Drive

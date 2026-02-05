@@ -163,6 +163,50 @@ impl<'a> CloudSyncManager<'a> {
         ))
     }
 
+    /// Determine MIME type based on file extension and media type
+    fn get_mime_type(file_path: &Path, media_type: &crate::database::MediaType) -> &'static str {
+        use crate::database::MediaType;
+        
+        match media_type {
+            MediaType::Image => {
+                // Determine image MIME type from extension
+                if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
+                    match ext.to_lowercase().as_str() {
+                        "jpg" | "jpeg" => "image/jpeg",
+                        "png" => "image/png",
+                        "gif" => "image/gif",
+                        "bmp" => "image/bmp",
+                        "webp" => "image/webp",
+                        "heic" => "image/heic",
+                        "tiff" | "tif" => "image/tiff",
+                        _ => "image/jpeg", // Default for images
+                    }
+                } else {
+                    "image/jpeg"
+                }
+            }
+            MediaType::Video => {
+                // Determine video MIME type from extension
+                if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
+                    match ext.to_lowercase().as_str() {
+                        "mp4" | "m4v" => "video/mp4",
+                        "mov" => "video/quicktime",
+                        "avi" => "video/x-msvideo",
+                        "mkv" => "video/x-matroska",
+                        "webm" => "video/webm",
+                        "flv" => "video/x-flv",
+                        "wmv" => "video/x-ms-wmv",
+                        "mpg" | "mpeg" => "video/mpeg",
+                        "3gp" => "video/3gpp",
+                        _ => "video/mp4", // Default for videos
+                    }
+                } else {
+                    "video/mp4"
+                }
+            }
+        }
+    }
+
     /// Upload a single file to Google Drive
     async fn upload_file(&self, image: &ImageRecord, access_token: &str) -> Result<(), String> {
         let file_path = Path::new(&image.path);
@@ -184,13 +228,21 @@ impl<'a> CloudSyncManager<'a> {
         // Create filename with checksum prefix for deduplication
         let drive_filename = format!("{}_{}", image.checksum, filename);
 
+        // Determine MIME type based on media type and file extension
+        let mime_type = Self::get_mime_type(file_path, &image.media_type);
+
         // Create multipart form
         let client = reqwest::Client::new();
 
         // Metadata for the file
+        let media_type_str = match image.media_type {
+            crate::database::MediaType::Image => "image",
+            crate::database::MediaType::Video => "video",
+        };
+        
         let metadata = serde_json::json!({
             "name": drive_filename,
-            "description": format!("Uploaded from Cura - Checksum: {}", image.checksum),
+            "description": format!("Uploaded from Cura - Type: {} - Checksum: {}", media_type_str, image.checksum),
         });
 
         let metadata_part = multipart::Part::text(metadata.to_string())
@@ -199,7 +251,7 @@ impl<'a> CloudSyncManager<'a> {
 
         let file_part = multipart::Part::bytes(file_content)
             .file_name(filename.to_string())
-            .mime_str("image/jpeg")
+            .mime_str(mime_type)
             .map_err(|e| format!("Failed to create file part: {}", e))?;
 
         let form = multipart::Form::new()
@@ -244,7 +296,7 @@ impl<'a> CloudSyncManager<'a> {
         Ok(())
     }
 
-    /// Sync images to Google Drive
+    /// Sync images and videos to Google Drive
     pub async fn sync_to_drive<F>(
         &self,
         image_ids: Vec<i64>,
@@ -263,14 +315,14 @@ impl<'a> CloudSyncManager<'a> {
         let total = image_ids.len();
 
         for (index, image_id) in image_ids.iter().enumerate() {
-            // Get image from database
+            // Get media record from database (images or videos)
             let image = match self.db.get_image_by_id(*image_id) {
                 Ok(Some(img)) => img,
                 Ok(None) => {
                     failed.push(SyncError {
                         image_id: *image_id,
                         path: String::new(),
-                        error: "Image not found in database".to_string(),
+                        error: "Media file not found in database".to_string(),
                     });
                     continue;
                 }
@@ -317,7 +369,7 @@ impl<'a> CloudSyncManager<'a> {
             // Upload file with retry logic
             match self.upload_file_with_retry(&image, &access_token).await {
                 Ok(_) => {
-                    log::info!("Successfully uploaded {}", image.path);
+                    log::info!("Successfully uploaded {} ({:?})", image.path, image.media_type);
                     uploaded += 1;
 
                     // Update sync status in database
@@ -405,6 +457,80 @@ mod tests {
         let _ = fs::remove_file(&test_file2);
     }
 
+    #[test]
+    fn test_get_mime_type_images() {
+        use crate::database::MediaType;
+        use std::path::Path;
+
+        // Test various image formats
+        let test_cases = vec![
+            ("test.jpg", MediaType::Image, "image/jpeg"),
+            ("test.jpeg", MediaType::Image, "image/jpeg"),
+            ("test.png", MediaType::Image, "image/png"),
+            ("test.gif", MediaType::Image, "image/gif"),
+            ("test.bmp", MediaType::Image, "image/bmp"),
+            ("test.webp", MediaType::Image, "image/webp"),
+            ("test.heic", MediaType::Image, "image/heic"),
+            ("test.tiff", MediaType::Image, "image/tiff"),
+            ("test.tif", MediaType::Image, "image/tiff"),
+            ("test.unknown", MediaType::Image, "image/jpeg"), // Default
+        ];
+
+        for (filename, media_type, expected_mime) in test_cases {
+            let path = Path::new(filename);
+            let mime = CloudSyncManager::get_mime_type(path, &media_type);
+            assert_eq!(mime, expected_mime, "Failed for {}", filename);
+        }
+    }
+
+    #[test]
+    fn test_get_mime_type_videos() {
+        use crate::database::MediaType;
+        use std::path::Path;
+
+        // Test various video formats
+        let test_cases = vec![
+            ("test.mp4", MediaType::Video, "video/mp4"),
+            ("test.m4v", MediaType::Video, "video/mp4"),
+            ("test.mov", MediaType::Video, "video/quicktime"),
+            ("test.avi", MediaType::Video, "video/x-msvideo"),
+            ("test.mkv", MediaType::Video, "video/x-matroska"),
+            ("test.webm", MediaType::Video, "video/webm"),
+            ("test.flv", MediaType::Video, "video/x-flv"),
+            ("test.wmv", MediaType::Video, "video/x-ms-wmv"),
+            ("test.mpg", MediaType::Video, "video/mpeg"),
+            ("test.mpeg", MediaType::Video, "video/mpeg"),
+            ("test.3gp", MediaType::Video, "video/3gpp"),
+            ("test.unknown", MediaType::Video, "video/mp4"), // Default
+        ];
+
+        for (filename, media_type, expected_mime) in test_cases {
+            let path = Path::new(filename);
+            let mime = CloudSyncManager::get_mime_type(path, &media_type);
+            assert_eq!(mime, expected_mime, "Failed for {}", filename);
+        }
+    }
+
+    #[test]
+    fn test_get_mime_type_case_insensitive() {
+        use crate::database::MediaType;
+        use std::path::Path;
+
+        // Test case insensitivity
+        let test_cases = vec![
+            ("test.MP4", MediaType::Video, "video/mp4"),
+            ("test.JPG", MediaType::Image, "image/jpeg"),
+            ("test.MoV", MediaType::Video, "video/quicktime"),
+            ("test.PnG", MediaType::Image, "image/png"),
+        ];
+
+        for (filename, media_type, expected_mime) in test_cases {
+            let path = Path::new(filename);
+            let mime = CloudSyncManager::get_mime_type(path, &media_type);
+            assert_eq!(mime, expected_mime, "Failed for {}", filename);
+        }
+    }
+
     // Unit test for retry logic
     // Validates: Requirements 8.4
     #[tokio::test]
@@ -449,7 +575,7 @@ mod tests {
         // Simulate all attempts failing
         let mut attempts = 0;
         let max_attempts = 3;
-        let mut success = false;
+        let success = false;
 
         while attempts < max_attempts {
             attempts += 1;
