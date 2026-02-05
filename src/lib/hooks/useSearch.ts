@@ -95,6 +95,7 @@ export function useSearch() {
           dateStart?: string;
           dateEnd?: string;
           cameraModel?: string;
+          mediaType?: string;
         } = {};
 
         if (query.text) {
@@ -112,6 +113,10 @@ export function useSearch() {
 
         if (query.cameraModel) {
           filters.cameraModel = query.cameraModel;
+        }
+
+        if (query.mediaType) {
+          filters.mediaType = query.mediaType;
         }
 
         // Perform search

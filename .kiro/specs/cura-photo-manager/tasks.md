@@ -667,7 +667,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 9.1 (extended)_
   
-  - [-] 25.2 Update detail view for video playback
+  - [x] 25.2 Update detail view for video playback
     - Add video player component with controls (play, pause, seek)
     - Show video-specific metadata (duration, codec)
     - Handle video loading and buffering states
@@ -675,7 +675,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 9.2 (extended)_
   
-  - [~] 25.3 Update search interface for media type filtering
+  - [-] 25.3 Update search interface for media type filtering
     - Add media type filter chip (All, Images, Videos)
     - Update search query to include media_type parameter
     - Display media type in search results

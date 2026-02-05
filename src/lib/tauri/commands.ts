@@ -131,6 +131,7 @@ export async function searchImages(filters: {
   dateStart?: string;
   dateEnd?: string;
   cameraModel?: string;
+  mediaType?: string;
 }): Promise<RustImageRecord[]> {
   try {
     const result = await invoke<RustImageRecord[]>('search_images', {
@@ -139,6 +140,7 @@ export async function searchImages(filters: {
       dateStart: filters.dateStart || null,
       dateEnd: filters.dateEnd || null,
       cameraModel: filters.cameraModel || null,
+      mediaType: filters.mediaType || null,
     });
     return result;
   } catch (error) {

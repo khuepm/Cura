@@ -175,6 +175,7 @@ fn search_images(
     date_start: Option<String>,
     date_end: Option<String>,
     camera_model: Option<String>,
+    media_type: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<Vec<database::ImageRecord>, String> {
     logging::log_debug("search", "Executing image search");
@@ -200,13 +201,26 @@ fn search_images(
         None
     };
     
+    // Parse media type if provided
+    let parsed_media_type = media_type.and_then(|mt| {
+        match mt.to_lowercase().as_str() {
+            "image" => Some(database::MediaType::Image),
+            "video" => Some(database::MediaType::Video),
+            "all" | "" => None, // "all" means no filter
+            _ => {
+                logging::log_warning("search", &format!("Invalid media type: {}", mt));
+                None
+            }
+        }
+    });
+    
     // Build filter
     let filter = database::ImageFilter {
         date_range,
         location: None, // Location filtering not implemented yet
         tags,
         camera_model,
-        media_type: None, // No media type filter for now
+        media_type: parsed_media_type,
     };
     
     // Query database

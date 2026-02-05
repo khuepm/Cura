@@ -21,6 +21,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
     end: "",
   });
   const [cameraModel, setCameraModel] = useState("");
+  const [mediaType, setMediaType] = useState<"all" | "image" | "video">("all");
   const [useSemanticSearch, setUseSemanticSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -31,7 +32,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [textInput, selectedTags, dateRange, cameraModel, useSemanticSearch]);
+  }, [textInput, selectedTags, dateRange, cameraModel, mediaType, useSemanticSearch]);
 
   const handleSearch = useCallback(async () => {
     const query: SearchQuery = {};
@@ -56,6 +57,10 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
       query.cameraModel = cameraModel.trim();
     }
 
+    if (mediaType !== "all") {
+      query.mediaType = mediaType;
+    }
+
     dispatch({ type: "SET_SEARCH_QUERY", payload: query });
 
     // Perform the actual search
@@ -64,7 +69,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
     if (onSearch) {
       onSearch(query);
     }
-  }, [textInput, selectedTags, dateRange, cameraModel, useSemanticSearch, dispatch, performSearch, onSearch]);
+  }, [textInput, selectedTags, dateRange, cameraModel, mediaType, useSemanticSearch, dispatch, performSearch, onSearch]);
 
   const handleAddTag = (tag: string) => {
     if (tag.trim() && !selectedTags.includes(tag.trim())) {
@@ -81,6 +86,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
     setSelectedTags([]);
     setDateRange({ start: "", end: "" });
     setCameraModel("");
+    setMediaType("all");
     setUseSemanticSearch(false);
   };
 
@@ -89,7 +95,8 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
     selectedTags.length > 0 ||
     dateRange.start ||
     dateRange.end ||
-    cameraModel.trim();
+    cameraModel.trim() ||
+    mediaType !== "all";
 
   return (
     <div className="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 p-4">
@@ -143,6 +150,40 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
             Searching...
           </div>
         )}
+
+        {/* Media type filter chips */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            onClick={() => setMediaType("all")}
+            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-colors ${mediaType === "all"
+                ? "bg-blue-500 text-white"
+                : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+              }`}
+          >
+            <span className="material-symbols-outlined text-sm">apps</span>
+            <span>All</span>
+          </button>
+          <button
+            onClick={() => setMediaType("image")}
+            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-colors ${mediaType === "image"
+                ? "bg-blue-500 text-white"
+                : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+              }`}
+          >
+            <span className="material-symbols-outlined text-sm">image</span>
+            <span>Images</span>
+          </button>
+          <button
+            onClick={() => setMediaType("video")}
+            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-colors ${mediaType === "video"
+                ? "bg-blue-500 text-white"
+                : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+              }`}
+          >
+            <span className="material-symbols-outlined text-sm">videocam</span>
+            <span>Videos</span>
+          </button>
+        </div>
 
         {/* Filter chips */}
         {selectedTags.length > 0 && (
