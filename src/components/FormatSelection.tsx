@@ -54,19 +54,32 @@ export default function FormatSelection({
     new Set(currentConfig.videoFormats)
   );
 
-  // Update local state when currentConfig changes
+  // Update local state when currentConfig changes (only if different)
   useEffect(() => {
-    setImageFormats(new Set(currentConfig.imageFormats));
-    setVideoFormats(new Set(currentConfig.videoFormats));
-  }, [currentConfig]);
+    const currentImageArray = Array.from(imageFormats).sort();
+    const newImageArray = [...currentConfig.imageFormats].sort();
+    const currentVideoArray = Array.from(videoFormats).sort();
+    const newVideoArray = [...currentConfig.videoFormats].sort();
+
+    const imageChanged = JSON.stringify(currentImageArray) !== JSON.stringify(newImageArray);
+    const videoChanged = JSON.stringify(currentVideoArray) !== JSON.stringify(newVideoArray);
+
+    if (imageChanged) {
+      setImageFormats(new Set(currentConfig.imageFormats));
+    }
+    if (videoChanged) {
+      setVideoFormats(new Set(currentConfig.videoFormats));
+    }
+  }, [currentConfig.imageFormats, currentConfig.videoFormats]);
 
   // Notify parent of changes
   useEffect(() => {
-    onConfigChange({
+    const newConfig = {
       imageFormats: Array.from(imageFormats),
       videoFormats: Array.from(videoFormats),
-    });
-  }, [imageFormats, videoFormats, onConfigChange]);
+    };
+    onConfigChange(newConfig);
+  }, [imageFormats, videoFormats]);
 
   const handleImageFormatToggle = (format: string) => {
     setImageFormats((prev) => {
@@ -159,8 +172,8 @@ export default function FormatSelection({
               <label
                 key={format.extension}
                 className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${isSelected
-                    ? "border-primary bg-primary/5"
-                    : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                  ? "border-primary bg-primary/5"
+                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                   } ${isLastSelected ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <input
@@ -234,8 +247,8 @@ export default function FormatSelection({
               <label
                 key={format.extension}
                 className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${isSelected
-                    ? "border-primary bg-primary/5"
-                    : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                  ? "border-primary bg-primary/5"
+                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                   } ${isLastSelected ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 <input
