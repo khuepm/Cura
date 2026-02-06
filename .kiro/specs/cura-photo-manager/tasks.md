@@ -488,7 +488,7 @@ This implementation plan breaks down the Cura media management application into 
     - Test installation on clean systems
     - _Requirements: All_
 
-- [ ] 19. Add video support - Database migration
+- [x] 19. Add video support - Database migration
   - [x] 19.1 Create database migration for video support
     - Add migration script to add media_type column (default 'image')
     - Add migration script to add duration_seconds column (nullable)
@@ -507,7 +507,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 6.3_
 
-- [ ] 20. Implement format configuration system
+- [x] 20. Implement format configuration system
   - [x] 20.1 Create format configuration module (Rust backend)
     - Implement get_format_config Tauri command
     - Implement set_format_config Tauri command
@@ -549,7 +549,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 12.4_
 
-- [ ] 21. Update media scanner for video support
+- [x] 21. Update media scanner for video support
   - [x] 21.1 Extend scanner to handle video files
     - Update scan_folder command to accept FormatConfig parameter
     - Add video format filtering based on configuration
@@ -572,7 +572,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 1.4 (extended)_
 
-- [ ] 22. Implement video thumbnail extraction
+- [x] 22. Implement video thumbnail extraction
   - [x] 22.1 Set up FFmpeg integration
     - Add ffmpeg-next or ffmpeg-sidecar crate dependency
     - Implement FFmpeg availability check on startup
@@ -614,7 +614,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 3.5 (extended)_
 
-- [ ] 23. Implement video metadata extraction
+- [x] 23. Implement video metadata extraction
   - [x] 23.1 Create video metadata extractor
     - Extend extract_metadata command to handle video files
     - Use FFmpeg to extract video metadata (duration, codec, dimensions)
@@ -636,7 +636,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 2.2 (extended)_
 
-- [ ] 24. Update database operations for video support
+- [x] 24. Update database operations for video support
   - [x] 24.1 Extend database functions for media type
     - Update insert_image function to accept media_type parameter
     - Update insert_image function to accept video metadata (duration, codec)
@@ -659,7 +659,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 6.1 (extended)_
 
-- [ ] 25. Update frontend UI for video support
+- [x] 25. Update frontend UI for video support
   - [x] 25.1 Update photo grid to show video indicators
     - Add video icon overlay to video thumbnails
     - Add media type filter dropdown (All, Images, Videos)
@@ -690,7 +690,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 9.1, 9.2 (extended)_
 
-- [ ] 26. Update settings page for format configuration
+- [x] 26. Update settings page for format configuration
   - [x] 26.1 Add format configuration section to settings
     - Integrate FormatSelection component into settings page
     - Load current format configuration on page load
@@ -707,7 +707,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 12.1, 12.4_
 
-- [ ] 27. Update media import flow for videos
+- [x] 27. Update media import flow for videos
   - [x] 27.1 Integrate video processing into import pipeline
     - Update folder import flow to process both images and videos
     - Call generate_video_thumbnails for video files
@@ -726,7 +726,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 1.2, 1.5 (extended)_
 
-- [ ] 28. Checkpoint - Ensure video support works end-to-end
+- [x] 28. Checkpoint - Ensure video support works end-to-end
   - Test complete video import flow
   - Test video thumbnail generation
   - Test video playback in detail view
@@ -735,7 +735,7 @@ This implementation plan breaks down the Cura media management application into 
   - Ensure all tests pass, ask the user if questions arise.
   - create github commit for this task then push to github
 
-- [ ] 29. Update cloud sync for video support
+- [x] 29. Update cloud sync for video support
   - [x] 29.1 Extend sync to handle video files
     - Update sync_to_drive to handle video files
     - Compute checksums for video files
@@ -751,7 +751,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 8.1 (extended)_
 
-- [ ] 30. Performance optimization for video support
+- [x] 30. Performance optimization for video support
   - [x] 30.1 Optimize video thumbnail extraction
     - Profile FFmpeg performance with various codecs
     - Implement thumbnail extraction caching
@@ -766,7 +766,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 10.1, 10.2 (extended)_
 
-- [ ] 31. Final integration and testing for video support
+- [x] 31. Final integration and testing for video support
   - [x] 31.1 Comprehensive end-to-end testing
     - Test all video support features together
     - Test edge cases (short videos, corrupt videos, unsupported codecs)
@@ -783,7 +783,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: All (extended)_
 
-- [ ] 32. Final checkpoint - Video support complete
+- [x] 32. Final checkpoint - Video support complete
   - Run all unit tests and property tests
   - Run integration tests for video features
   - Verify all video requirements are met
