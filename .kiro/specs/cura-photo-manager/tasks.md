@@ -759,7 +759,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 10.1, 10.2 (extended)_
   
-  - [-] 30.2 Write performance tests for video processing
+  - [x] 30.2 Write performance tests for video processing
     - Benchmark video thumbnail extraction throughput
     - Test with various video codecs and sizes
     - Verify performance targets are met
@@ -767,7 +767,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 10.1, 10.2 (extended)_
 
 - [ ] 31. Final integration and testing for video support
-  - [~] 31.1 Comprehensive end-to-end testing
+  - [-] 31.1 Comprehensive end-to-end testing
     - Test all video support features together
     - Test edge cases (short videos, corrupt videos, unsupported codecs)
     - Test format configuration with various combinations
