@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useAppDispatch, useAppState } from '../store/AppContext';
 import { useTauriCommands } from './useTauriCommands';
 import { listenToScanProgress } from '../tauri/events';
@@ -42,14 +43,16 @@ export function useFolderImport() {
 
   /**
    * Open folder selection dialog
-   * For now, we'll use a simple prompt. In production, this would use Tauri's dialog plugin.
    */
   const selectFolder = useCallback(async (): Promise<string | null> => {
     try {
-      // TODO: Replace with Tauri dialog plugin when npm package is installed
-      // For now, use a simple prompt for testing
-      const folderPath = prompt('Enter folder path to scan:');
-      return folderPath;
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: 'Select folder to import',
+      });
+      
+      return selected as string | null;
     } catch (error) {
       setError('Failed to open folder selection dialog');
       console.error('Folder selection error:', error);
