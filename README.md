@@ -12,6 +12,10 @@ A desktop photo management application built with Tauri (Rust backend) and Next.
 - SQLite database for efficient metadata storage
 - Support for multiple image formats (JPEG, PNG, HEIC, RAW)
 - Support for multiple video formats (MP4, MOV, AVI, MKV, etc.)
+- Configurable format selection for images and videos
+- Video thumbnail extraction using FFmpeg
+
+For detailed video features documentation, see the **[Video Features User Guide](docs/VIDEO_FEATURES.md)**.
 
 ## Tech Stack
 

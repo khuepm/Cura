@@ -7,6 +7,7 @@ The Cura Photo Manager development environment has been successfully configured 
 ### Backend (Rust)
 - ✓ Tauri 2.9.5 with filesystem and dialog plugins
 - ✓ Image processing: `image`, `kamadak-exif`
+- ✓ Video processing: `ffmpeg-sidecar` for thumbnail extraction
 - ✓ Parallel processing: `rayon`
 - ✓ Directory traversal: `walkdir`
 - ✓ Database: `rusqlite` with bundled SQLite
@@ -22,13 +23,22 @@ The Cura Photo Manager development environment has been successfully configured 
 
 ### Database Schema
 - ✓ SQLite database with three tables:
-  - `images`: Image metadata and file paths
+  - `images`: Image and video metadata, file paths, media type
   - `tags`: AI-generated content tags
   - `embeddings`: CLIP embeddings for semantic search
 - ✓ Indexes for optimized queries
 - ✓ Foreign key constraints with cascade delete
+- ✓ Support for video-specific metadata (duration, codec)
 
 ## Running Tests
+
+### Prerequisites for Video Tests
+Video-related tests require FFmpeg to be installed:
+- **Windows**: `choco install ffmpeg` or see [FFmpeg Installation Guide](docs/FFMPEG_INSTALLATION.md)
+- **macOS**: `brew install ffmpeg`
+- **Linux**: `sudo apt install ffmpeg` (Ubuntu/Debian)
+
+Verify installation: `ffmpeg -version`
 
 ### Frontend Tests
 ```bash
