@@ -39,6 +39,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+lazy_static = "1.4"
 
 # Video processing
 ffmpeg-sidecar = "2.0"

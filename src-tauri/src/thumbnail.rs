@@ -5,10 +5,73 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::io::Cursor;
+use std::time::Instant;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use log::{info, warn, debug};
 
 /// Thumbnail sizes
 const THUMBNAIL_SMALL_WIDTH: u32 = 150;
 const THUMBNAIL_MEDIUM_WIDTH: u32 = 600;
+
+/// FFmpeg performance metrics for different codecs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodecPerformanceMetrics {
+    pub codec_name: String,
+    pub avg_extraction_time_ms: f64,
+    pub sample_count: usize,
+    pub success_rate: f64,
+}
+
+/// Global performance tracker for video thumbnail extraction
+lazy_static::lazy_static! {
+    static ref CODEC_PERFORMANCE: Arc<Mutex<HashMap<String, CodecStats>>> = 
+        Arc::new(Mutex::new(HashMap::new()));
+}
+
+/// Statistics for a specific codec
+#[derive(Debug, Clone)]
+struct CodecStats {
+    total_time_ms: u64,
+    sample_count: usize,
+    success_count: usize,
+}
+
+impl CodecStats {
+    fn new() -> Self {
+        Self {
+            total_time_ms: 0,
+            sample_count: 0,
+            success_count: 0,
+        }
+    }
+
+    fn record_success(&mut self, duration_ms: u64) {
+        self.total_time_ms += duration_ms;
+        self.sample_count += 1;
+        self.success_count += 1;
+    }
+
+    fn record_failure(&mut self) {
+        self.sample_count += 1;
+    }
+
+    fn avg_time_ms(&self) -> f64 {
+        if self.success_count == 0 {
+            0.0
+        } else {
+            self.total_time_ms as f64 / self.success_count as f64
+        }
+    }
+
+    fn success_rate(&self) -> f64 {
+        if self.sample_count == 0 {
+            0.0
+        } else {
+            self.success_count as f64 / self.sample_count as f64
+        }
+    }
+}
 
 /// Paths to generated thumbnails
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -311,14 +374,19 @@ pub fn generate_video_thumbnails(
 /// Extract a frame from a video file using FFmpeg
 /// Extracts frame at 5 seconds, or first frame if video is shorter
 fn extract_video_frame(video_path: &Path) -> Result<Vec<u8>, String> {
-    // First, get video duration to determine if we should extract at 5 seconds or first frame
-    let duration = get_video_duration(video_path)?;
+    let start_time = Instant::now();
+    
+    // First, get video duration and codec to determine if we should extract at 5 seconds or first frame
+    let (duration, codec) = get_video_info(video_path)?;
     
     // Determine seek time: 5 seconds if video is longer, otherwise 0 (first frame)
     let seek_time = if duration >= 5.0 { "5" } else { "0" };
 
     // Run FFmpeg to extract a single frame
-    // Command: ffmpeg -ss {seek_time} -i {video_path} -vframes 1 -f image2pipe -
+    // Use optimized settings for faster extraction:
+    // -ss before -i for faster seeking
+    // -threads 1 to avoid overhead for single frame extraction
+    // -vframes 1 to extract only one frame
     let output = Command::new("ffmpeg")
         .arg("-ss")
         .arg(seek_time)
@@ -326,22 +394,117 @@ fn extract_video_frame(video_path: &Path) -> Result<Vec<u8>, String> {
         .arg(video_path)
         .arg("-vframes")
         .arg("1")
+        .arg("-threads")
+        .arg("1")
         .arg("-f")
         .arg("image2pipe")
         .arg("-")
         .output()
         .map_err(|e| format!("Failed to execute FFmpeg: {}. Make sure FFmpeg is installed and in PATH.", e))?;
 
+    let extraction_time = start_time.elapsed().as_millis() as u64;
+
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        
+        // Record failure for this codec
+        if let Ok(mut perf) = CODEC_PERFORMANCE.lock() {
+            perf.entry(codec.clone())
+                .or_insert_with(CodecStats::new)
+                .record_failure();
+        }
+        
+        warn!("FFmpeg failed to extract frame from {} (codec: {}): {}", 
+              video_path.display(), codec, stderr);
         return Err(format!("FFmpeg failed to extract frame: {}", stderr));
     }
 
     if output.stdout.is_empty() {
+        // Record failure for this codec
+        if let Ok(mut perf) = CODEC_PERFORMANCE.lock() {
+            perf.entry(codec.clone())
+                .or_insert_with(CodecStats::new)
+                .record_failure();
+        }
+        
         return Err("FFmpeg returned empty frame data. Video may not have a video stream.".to_string());
     }
 
+    // Record success for this codec
+    if let Ok(mut perf) = CODEC_PERFORMANCE.lock() {
+        perf.entry(codec.clone())
+            .or_insert_with(CodecStats::new)
+            .record_success(extraction_time);
+    }
+
+    debug!("Extracted frame from {} (codec: {}) in {}ms", 
+           video_path.display(), codec, extraction_time);
+
     Ok(output.stdout)
+}
+
+/// Get video duration and codec information using ffprobe
+fn get_video_info(video_path: &Path) -> Result<(f64, String), String> {
+    // Use ffprobe to get both duration and codec in a single call
+    // This is more efficient than making separate calls
+    let output = Command::new("ffprobe")
+        .arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("v:0")
+        .arg("-show_entries")
+        .arg("stream=codec_name:format=duration")
+        .arg("-of")
+        .arg("csv=p=0")
+        .arg(video_path)
+        .output()
+        .map_err(|e| format!("Failed to execute ffprobe: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffprobe failed to get video info: {}", stderr));
+    }
+
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = output_str.trim().lines().collect();
+    
+    if lines.is_empty() {
+        return Err("ffprobe returned no video information".to_string());
+    }
+
+    // Parse codec name (first line)
+    let codec = lines[0].trim().to_string();
+    
+    // Parse duration (second line if present, otherwise try to get from format)
+    let duration = if lines.len() > 1 {
+        lines[1].trim().parse::<f64>()
+            .map_err(|e| format!("Failed to parse video duration: {}", e))?
+    } else {
+        // Fallback: get duration from format
+        get_video_duration(video_path)?
+    };
+
+    Ok((duration, codec))
+}
+
+/// Get codec performance metrics for profiling
+pub fn get_codec_performance_metrics() -> Vec<CodecPerformanceMetrics> {
+    let perf = CODEC_PERFORMANCE.lock().unwrap();
+    
+    perf.iter()
+        .map(|(codec, stats)| CodecPerformanceMetrics {
+            codec_name: codec.clone(),
+            avg_extraction_time_ms: stats.avg_time_ms(),
+            sample_count: stats.sample_count,
+            success_rate: stats.success_rate(),
+        })
+        .collect()
+}
+
+/// Reset codec performance metrics
+pub fn reset_codec_performance_metrics() {
+    let mut perf = CODEC_PERFORMANCE.lock().unwrap();
+    perf.clear();
 }
 
 /// Get the duration of a video file in seconds using FFmpeg

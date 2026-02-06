@@ -744,7 +744,7 @@ This implementation plan breaks down the Cura media management application into 
     - create github commit for this task then push to github
     - _Requirements: 8.1, 8.2, 8.3 (extended)_
   
-  - [-] 29.2 Write unit test for video file uploads
+  - [x] 29.2 Write unit test for video file uploads
     - Test uploading video files to Drive
     - Test checksum-based deduplication for videos
     - create github commit for this task then push to github
@@ -752,7 +752,7 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 8.1 (extended)_
 
 - [ ] 30. Performance optimization for video support
-  - [~] 30.1 Optimize video thumbnail extraction
+  - [-] 30.1 Optimize video thumbnail extraction
     - Profile FFmpeg performance with various codecs
     - Implement thumbnail extraction caching
     - Optimize parallel processing for mixed media

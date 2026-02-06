@@ -144,6 +144,20 @@ fn generate_video_thumbnails(
     }
 }
 
+/// Tauri command to get codec performance metrics
+#[tauri::command]
+fn get_codec_performance_metrics() -> Vec<thumbnail::CodecPerformanceMetrics> {
+    logging::log_debug("thumbnail", "Getting codec performance metrics");
+    thumbnail::get_codec_performance_metrics()
+}
+
+/// Tauri command to reset codec performance metrics
+#[tauri::command]
+fn reset_codec_performance_metrics() {
+    logging::log_debug("thumbnail", "Resetting codec performance metrics");
+    thumbnail::reset_codec_performance_metrics();
+}
+
 /// Tauri command to save tags for an image
 #[tauri::command]
 fn save_tags(
@@ -536,6 +550,8 @@ pub fn run() {
       extract_video_metadata,
       generate_thumbnails,
       generate_video_thumbnails,
+      get_codec_performance_metrics,
+      reset_codec_performance_metrics,
       save_tags,
       search_images,
       get_image_tags,
