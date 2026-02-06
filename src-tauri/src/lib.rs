@@ -8,7 +8,7 @@ mod performance;
 mod scanner;
 mod settings;
 mod sync;
-mod thumbnail;
+pub mod thumbnail; // Made public for performance tests
 mod updater;
 
 use tauri::Manager;

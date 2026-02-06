@@ -57,3 +57,8 @@ urlencoding = "2.1"
 proptest = "1.5"
 tempfile = "3.13"
 uuid = { version = "1.11", features = ["v4"] }
+criterion = "0.5"
+
+[[bench]]
+name = "video_performance"
+harness = false

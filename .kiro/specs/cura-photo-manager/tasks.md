@@ -752,14 +752,14 @@ This implementation plan breaks down the Cura media management application into 
     - _Requirements: 8.1 (extended)_
 
 - [ ] 30. Performance optimization for video support
-  - [-] 30.1 Optimize video thumbnail extraction
+  - [x] 30.1 Optimize video thumbnail extraction
     - Profile FFmpeg performance with various codecs
     - Implement thumbnail extraction caching
     - Optimize parallel processing for mixed media
     - create github commit for this task then push to github
     - _Requirements: 10.1, 10.2 (extended)_
   
-  - [~] 30.2 Write performance tests for video processing
+  - [-] 30.2 Write performance tests for video processing
     - Benchmark video thumbnail extraction throughput
     - Test with various video codecs and sizes
     - Verify performance targets are met
