@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useSettings } from "@/lib/hooks/useSettings";
-import { open } from "@tauri-apps/plugin-dialog";
-import type { AppSettings } from "@/lib/types";
+import FormatSelection from "@/components/FormatSelection";
+import type { AppSettings, FormatConfig } from "@/lib/types";
 
 export default function SettingsPage() {
   const { settings, loading, error, saveSettings } = useSettings();
@@ -29,13 +29,10 @@ export default function SettingsPage() {
 
   const handleBrowseFolder = async () => {
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: "Select Thumbnail Cache Directory",
-      });
+      // TODO: Implement folder selection dialog when Tauri plugin is available
+      const selected = prompt("Enter thumbnail cache directory path:");
 
-      if (selected && typeof selected === "string" && formData) {
+      if (selected && formData) {
         setFormData({
           ...formData,
           thumbnailCachePath: selected,
@@ -117,6 +114,13 @@ export default function SettingsPage() {
             >
               <span className="material-symbols-outlined">cloud_sync</span>
               <span>Cloud Sync</span>
+            </a>
+            <a
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 font-medium text-sm transition-colors"
+              href="#formats"
+            >
+              <span className="material-symbols-outlined">description</span>
+              <span>File Formats</span>
             </a>
           </nav>
         </aside>
@@ -354,6 +358,31 @@ export default function SettingsPage() {
                   <option value="medium">Medium</option>
                 </select>
               </div>
+            </div>
+          </section>
+
+          <section id="formats" className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                File Format Configuration
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Select which image and video formats to import when scanning folders.
+              </p>
+            </div>
+            <div className="p-6">
+              <FormatSelection
+                currentConfig={formData.formatConfig || {
+                  imageFormats: ["jpg", "jpeg", "png", "heic", "raw", "cr2", "nef", "dng", "arw", "webp", "gif", "bmp", "tiff"],
+                  videoFormats: ["mp4", "mov", "avi", "mkv", "webm", "flv", "wmv", "m4v", "mpg", "mpeg", "3gp"],
+                }}
+                onConfigChange={(config: FormatConfig) => {
+                  setFormData({
+                    ...formData,
+                    formatConfig: config,
+                  });
+                }}
+              />
             </div>
           </section>
 

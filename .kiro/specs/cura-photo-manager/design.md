@@ -2,23 +2,27 @@
 
 ## Overview
 
-Cura is a desktop photo management application built on a hybrid architecture combining Rust (Tauri backend) for high-performance image processing with Next.js (React frontend) for a modern, responsive user interface. The system leverages browser-based AI models through Transformers.js for intelligent photo classification while maintaining native performance for I/O-intensive operations.
+Cura is a desktop media management application built on a hybrid architecture combining Rust (Tauri backend) for high-performance image and video processing with Next.js (React frontend) for a modern, responsive user interface. The system leverages browser-based AI models through Transformers.js for intelligent media classification while maintaining native performance for I/O-intensive operations. The application supports both images and videos, with intelligent thumbnail generation from video frames.
 
 ### Architecture Philosophy
 
 The design follows a clear separation of concerns:
-- **Rust Backend**: Handles all filesystem operations, image processing, and metadata extraction
+- **Rust Backend**: Handles all filesystem operations, image and video processing, metadata extraction, and video thumbnail generation
 - **Next.js Frontend**: Manages UI rendering, user interactions, and AI inference
 - **IPC Bridge**: Tauri's command system provides type-safe communication between layers
 - **Local-First**: All core functionality works offline; cloud sync is an optional enhancement
+- **Unified Media Handling**: Images and videos are treated as first-class media types with format-specific processing pipelines
 
 ### Key Design Decisions
 
 1. **Dual Thumbnail Strategy**: Generate both 150px (grid) and 600px (detail) thumbnails to optimize for different viewing contexts
-2. **Parallel Processing**: Use Rayon for CPU-bound tasks to maximize throughput on multi-core systems
-3. **Browser-Based AI**: Run inference in web workers to avoid blocking the UI thread
-4. **Incremental Indexing**: Process images in batches with progress feedback rather than blocking on large imports
-5. **Checksum-Based Sync**: Use content hashing to avoid redundant uploads to Google Drive
+2. **Video Thumbnail Extraction**: Extract video thumbnails from the frame at 5 seconds (or first frame if video is shorter) using FFmpeg
+3. **Configurable Format Support**: Allow users to select which image and video formats to import, with sensible defaults for all common formats
+4. **Parallel Processing**: Use Rayon for CPU-bound tasks to maximize throughput on multi-core systems
+5. **Browser-Based AI**: Run inference in web workers to avoid blocking the UI thread
+6. **Incremental Indexing**: Process media files in batches with progress feedback rather than blocking on large imports
+7. **Checksum-Based Sync**: Use content hashing to avoid redundant uploads to Google Drive
+8. **Media Type Distinction**: Store media type (image/video) in database to enable type-specific filtering and processing
 
 ## Architecture
 
@@ -38,10 +42,12 @@ graph TB
     end
     
     subgraph "Backend (Rust)"
-        Scanner[Image Scanner]
+        Scanner[Media Scanner]
         MetaExtractor[Metadata Extractor]
         ThumbGen[Thumbnail Generator]
+        VideoThumb[Video Thumbnail Extractor]
         CloudSync[Cloud Sync Manager]
+        FormatConfig[Format Configuration]
     end
     
     subgraph "Storage"
@@ -54,11 +60,14 @@ graph TB
     Commands --> Scanner
     Commands --> MetaExtractor
     Commands --> ThumbGen
+    Commands --> VideoThumb
     Commands --> CloudSync
+    Commands --> FormatConfig
     
     Scanner --> FS
     MetaExtractor --> FS
     ThumbGen --> Cache
+    VideoThumb --> Cache
     
     Scanner --> DB
     MetaExtractor --> DB
@@ -72,17 +81,21 @@ graph TB
 
 ### Data Flow
 
-**Image Import Flow**:
+**Media Import Flow**:
 1. User selects folder via Tauri dialog
-2. Rust scanner traverses directory tree in parallel
-3. For each image:
-   - Extract metadata (EXIF, file stats)
-   - Generate small (150px) and medium (600px) thumbnails
-   - Store metadata and paths in SQLite
+2. User can optionally configure which image and video formats to import (or use defaults)
+3. Rust scanner traverses directory tree in parallel
+4. For each media file:
+   - Determine media type (image or video) based on extension
+   - Extract metadata (EXIF for images, video metadata for videos)
+   - Generate thumbnails:
+     - Images: Generate small (150px) and medium (600px) thumbnails directly
+     - Videos: Extract frame at 5 seconds using FFmpeg, then generate thumbnails from that frame
+   - Store metadata, paths, and media type in SQLite
    - Emit progress event to frontend
-4. Frontend receives thumbnail paths and displays grid
-5. AI worker processes thumbnails in background queue
-6. Tags are saved to database as they're generated
+5. Frontend receives thumbnail paths and displays grid with both images and videos
+6. AI worker processes thumbnails in background queue
+7. Tags are saved to database as they're generated
 
 **Search Flow**:
 1. User enters search query in UI
@@ -105,29 +118,48 @@ graph TB
 
 ### Rust Backend Components
 
-#### Image Scanner
+#### Media Scanner
 
-**Responsibility**: Discover image files in directory trees
+**Responsibility**: Discover image and video files in directory trees based on user-configured format preferences
 
 **Interface**:
 ```rust
 #[tauri::command]
-async fn scan_folder(path: String) -> Result<ScanResult, String> {
-    // Returns list of discovered image paths
+async fn scan_folder(path: String, config: Option<FormatConfig>) -> Result<ScanResult, String> {
+    // Returns list of discovered media paths with type information
 }
 
 struct ScanResult {
-    images: Vec<ImagePath>,
+    media_files: Vec<MediaFile>,
     total_count: usize,
     errors: Vec<ScanError>,
+}
+
+struct MediaFile {
+    path: String,
+    media_type: MediaType,
+}
+
+enum MediaType {
+    Image,
+    Video,
+}
+
+struct FormatConfig {
+    image_formats: Vec<String>,  // e.g., ["jpg", "png", "heic", "raw"]
+    video_formats: Vec<String>,  // e.g., ["mp4", "mov", "avi", "mkv"]
 }
 ```
 
 **Implementation Details**:
 - Use `walkdir` crate for recursive traversal
-- Filter by extension: `.jpg`, `.jpeg`, `.png`, `.heic`, `.raw`, `.cr2`, `.nef`
+- Default image formats: `.jpg`, `.jpeg`, `.png`, `.heic`, `.raw`, `.cr2`, `.nef`, `.dng`, `.arw`
+- Default video formats: `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`, `.flv`, `.wmv`, `.m4v`
+- Filter files based on user-configured format preferences (or use defaults)
+- Determine media type based on extension
 - Use Rayon's `par_bridge()` to parallelize file discovery
 - Emit progress events every 100 files processed
+- Return both images and videos in unified result structure
 
 #### Metadata Extractor
 
@@ -187,6 +219,36 @@ struct ThumbnailPaths {
 - Cache location: `{AppData}/cura/thumbnails/{checksum}_{size}.jpg`
 - Skip generation if thumbnail exists and source file unchanged (compare mtime)
 
+#### Video Thumbnail Extractor
+
+**Responsibility**: Extract frames from videos and create thumbnail images
+
+**Interface**:
+```rust
+#[tauri::command]
+async fn generate_video_thumbnails(video_path: String) -> Result<ThumbnailPaths, String> {
+    // Returns paths to generated thumbnails from video frame
+}
+
+struct ThumbnailPaths {
+    small: String,  // 150px width
+    medium: String, // 600px width
+}
+```
+
+**Implementation Details**:
+- Use FFmpeg (via `ffmpeg-next` or `ffmpeg-sidecar` crate) to extract video frames
+- Extract frame at 5 seconds into the video (or first frame if video duration < 5 seconds)
+- Command: `ffmpeg -ss 5 -i {video_path} -vframes 1 -f image2pipe -`
+- Decode extracted frame using `image` crate
+- Generate two thumbnail sizes: 150px width (small) and 600px width (medium)
+- Use Lanczos3 filter for high-quality downsampling
+- Cache location: `{AppData}/cura/thumbnails/{checksum}_{size}.jpg`
+- Skip generation if thumbnail exists and source file unchanged (compare mtime)
+- Handle videos shorter than 5 seconds by extracting first frame
+- Handle videos without video streams by returning error
+- Target: <500ms per video on average (depends on video codec and size)
+
 #### Cloud Sync Manager
 
 **Responsibility**: Handle Google Drive authentication and file uploads
@@ -219,7 +281,72 @@ struct SyncResult {
 - Implement exponential backoff for retries (3 attempts max)
 - Emit progress events with percentage and current file
 
+#### Format Configuration Manager
+
+**Responsibility**: Manage user preferences for supported image and video formats
+
+**Interface**:
+```rust
+#[tauri::command]
+async fn get_format_config() -> Result<FormatConfig, String> {
+    // Returns current format configuration
+}
+
+#[tauri::command]
+async fn set_format_config(config: FormatConfig) -> Result<(), String> {
+    // Saves format configuration to settings
+}
+
+#[tauri::command]
+async fn get_default_formats() -> Result<FormatConfig, String> {
+    // Returns default format configuration
+}
+
+struct FormatConfig {
+    image_formats: Vec<String>,
+    video_formats: Vec<String>,
+}
+```
+
+**Implementation Details**:
+- Store format preferences in application settings file
+- Provide sensible defaults:
+  - Images: jpg, jpeg, png, heic, raw, cr2, nef, dng, arw, webp, gif, bmp, tiff
+  - Videos: mp4, mov, avi, mkv, webm, flv, wmv, m4v, mpg, mpeg, 3gp
+- Validate format strings (lowercase, no dots)
+- Persist changes immediately to settings file
+- Emit event when configuration changes to trigger UI updates
+
 ### Frontend Components
+
+#### Format Selection UI
+
+**Responsibility**: Allow users to configure which media formats to import
+
+**Interface**:
+```typescript
+interface FormatSelectionProps {
+  currentConfig: FormatConfig;
+  onConfigChange: (config: FormatConfig) => void;
+}
+
+interface FormatConfig {
+  imageFormats: string[];
+  videoFormats: string[];
+}
+
+function FormatSelection(props: FormatSelectionProps): JSX.Element
+```
+
+**Implementation Details**:
+- Display two sections: Image Formats and Video Formats
+- Show checkboxes for each supported format
+- Provide "Select All" / "Deselect All" buttons for each section
+- Display format counts (e.g., "12 of 15 image formats selected")
+- Show file extension examples for each format
+- Persist changes via Tauri command to backend
+- Display in Settings page and optionally in folder import dialog
+- Validate that at least one format is selected in each category
 
 #### AI Classifier
 
@@ -259,19 +386,22 @@ async function classifyImage(request: ClassificationRequest): Promise<Classifica
 **Photo Grid**:
 - Use `react-window` for virtual scrolling
 - Display small thumbnails (150px) in responsive grid
+- Show media type indicator (video icon overlay for videos)
 - Show skeleton loaders while thumbnails load
 - Support infinite scroll for large collections
 
 **Photo Detail View**:
 - Display medium thumbnail (600px) initially
-- Lazy load full-resolution image on demand
-- Show metadata panel with EXIF information
+- For images: Lazy load full-resolution image on demand
+- For videos: Show video player with controls (play, pause, seek)
+- Show metadata panel with EXIF/video information
 - Display AI-generated tags with confidence scores
 - Provide map view if GPS coordinates available
+- Show media type and format information
 
 **Search Interface**:
 - Text input with debounced search (300ms)
-- Filter chips for tags, date ranges, locations
+- Filter chips for tags, date ranges, locations, media type (image/video)
 - Toggle between tag search and semantic search (if CLIP enabled)
 - Display result count and search time
 
@@ -283,6 +413,7 @@ async function classifyImage(request: ClassificationRequest): Promise<Classifica
 CREATE TABLE images (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     path TEXT NOT NULL UNIQUE,
+    media_type TEXT NOT NULL DEFAULT 'image', -- 'image' or 'video'
     thumbnail_small TEXT NOT NULL,
     thumbnail_medium TEXT NOT NULL,
     checksum TEXT NOT NULL,
@@ -293,6 +424,8 @@ CREATE TABLE images (
     gps_longitude REAL,
     width INTEGER NOT NULL,
     height INTEGER NOT NULL,
+    duration_seconds REAL, -- NULL for images, video duration for videos
+    video_codec TEXT, -- NULL for images, codec name for videos
     file_size INTEGER NOT NULL,
     file_modified DATETIME NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -319,11 +452,19 @@ CREATE TABLE embeddings (
 );
 
 CREATE INDEX idx_images_path ON images(path);
+CREATE INDEX idx_images_media_type ON images(media_type);
 CREATE INDEX idx_images_capture_date ON images(capture_date);
 CREATE INDEX idx_images_sync_status ON images(sync_status);
 CREATE INDEX idx_tags_image_id ON tags(image_id);
 CREATE INDEX idx_tags_label ON tags(label);
 ```
+
+**Schema Changes for Video Support**:
+- Added `media_type` column to distinguish between images and videos
+- Added `duration_seconds` column for video duration
+- Added `video_codec` column for video codec information
+- Added index on `media_type` for efficient filtering
+- Table name remains `images` for backward compatibility (represents all media)
 
 ## Data Models
 
@@ -334,16 +475,17 @@ CREATE INDEX idx_tags_label ON tags(label);
 interface ImageRecord {
   id: number;
   path: string;
+  mediaType: 'image' | 'video';
   thumbnailSmall: string;
   thumbnailMedium: string;
   checksum: string;
-  metadata: ImageMetadata;
+  metadata: MediaMetadata;
   tags: Tag[];
   syncStatus: 'pending' | 'synced' | 'failed';
   syncedAt?: Date;
 }
 
-interface ImageMetadata {
+interface MediaMetadata {
   captureDate?: Date;
   cameraMake?: string;
   cameraModel?: string;
@@ -355,6 +497,10 @@ interface ImageMetadata {
     width: number;
     height: number;
   };
+  // Video-specific metadata
+  durationSeconds?: number;
+  videoCodec?: string;
+  // Common metadata
   fileSize: number;
   fileModified: Date;
 }
@@ -380,6 +526,7 @@ interface SearchQuery {
     radiusKm: number;
   };
   cameraModel?: string;
+  mediaType?: 'image' | 'video' | 'all'; // Filter by media type
   semantic?: boolean; // Use CLIP semantic search
 }
 
@@ -388,6 +535,19 @@ interface SearchResult {
   totalCount: number;
   searchTimeMs: number;
 }
+```
+
+**Format Configuration**:
+```typescript
+interface FormatConfig {
+  imageFormats: string[];
+  videoFormats: string[];
+}
+
+const DEFAULT_FORMAT_CONFIG: FormatConfig = {
+  imageFormats: ['jpg', 'jpeg', 'png', 'heic', 'raw', 'cr2', 'nef', 'dng', 'arw', 'webp', 'gif', 'bmp', 'tiff'],
+  videoFormats: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', 'mpg', 'mpeg', '3gp']
+};
 ```
 
 **Sync Configuration**:
@@ -411,6 +571,7 @@ interface AppState {
     selectedFolder: string | null;
     viewMode: 'grid' | 'detail';
     selectedImageId: number | null;
+    mediaTypeFilter: 'all' | 'image' | 'video'; // Filter displayed media
   };
   
   search: {
@@ -440,6 +601,7 @@ interface AppState {
     thumbnailCachePath: string;
     aiModel: 'clip' | 'mobilenet';
     syncConfig: SyncConfig;
+    formatConfig: FormatConfig; // User-configured format preferences
   };
 }
 ```
@@ -599,6 +761,48 @@ interface AppState {
 
 **Validates: Requirements 12.4**
 
+### Property 26: Video Format Support
+
+*For any* valid video file in MP4, MOV, AVI, or MKV format (or other configured formats), the system should successfully process it and extract a thumbnail without errors.
+
+**Validates: Requirements 1.4 (extended for video)**
+
+### Property 27: Video Thumbnail Extraction at 5 Seconds
+
+*For any* video file longer than 5 seconds, the thumbnail should be extracted from the frame at exactly 5 seconds into the video.
+
+**Validates: Requirements 3.1 (extended for video)**
+
+### Property 28: Video Thumbnail Extraction for Short Videos
+
+*For any* video file shorter than 5 seconds, the thumbnail should be extracted from the first frame of the video.
+
+**Validates: Requirements 3.1 (extended for video)**
+
+### Property 29: Format Configuration Persistence
+
+*For any* format configuration change (adding or removing image/video formats), saving the configuration and restarting the application should preserve the changed format selections.
+
+**Validates: Requirements 12.2, 12.3 (extended for format config)**
+
+### Property 30: Media Type Filtering
+
+*For any* database query with media type filter (image, video, or all), the results should contain only media files matching the specified type.
+
+**Validates: Requirements 6.2 (extended for media type)**
+
+### Property 31: Video Metadata Extraction
+
+*For any* video file, the extracted metadata should include duration in seconds, video codec, dimensions, and file size.
+
+**Validates: Requirements 2.1 (extended for video)**
+
+### Property 32: Default Format Configuration
+
+*For any* first-time application startup, the system should initialize with default format configuration including all common image and video formats.
+
+**Validates: Requirements 12.5 (extended for format config)**
+
 ## Error Handling
 
 ### Error Categories
@@ -612,6 +816,13 @@ interface AppState {
 - Corrupt image data: Log error, display placeholder thumbnail
 - Unsupported format: Log warning, skip file
 - EXIF parsing failure: Use fallback values (file system metadata)
+
+**Video Processing Errors**:
+- FFmpeg not found: Display error message, disable video support
+- Video codec not supported: Log warning, display placeholder thumbnail
+- Video file corrupt: Log error, display placeholder thumbnail
+- Frame extraction failure: Retry with first frame, if still fails use placeholder
+- Video too short (< 1 frame): Use placeholder thumbnail
 
 **AI Inference Errors**:
 - Model loading failure: Disable AI features, notify user
@@ -627,6 +838,7 @@ interface AppState {
 - Schema initialization failure: Display error, prevent app startup
 - Query failure: Log error, return empty results
 - Constraint violation: Log error, rollback transaction
+- Migration failure: Display error with migration details, prevent app startup
 
 ### Error Recovery Strategies
 
@@ -690,15 +902,19 @@ proptest! {
 
 ### Test Coverage by Component
 
-**Image Scanner**:
-- Unit: Test with known directory structures
+**Media Scanner**:
+- Unit: Test with known directory structures containing images and videos
 - Property: Recursive discovery completeness (Property 1)
-- Property: Format support (Property 2)
+- Property: Format support for images (Property 2)
+- Property: Format support for videos (Property 26)
 - Property: Error isolation (Property 3)
+- Unit: Test format configuration filtering
 
 **Metadata Extractor**:
 - Unit: Test with sample images with known EXIF data
-- Property: Metadata field completeness (Property 4)
+- Unit: Test with sample videos with known metadata
+- Property: Metadata field completeness for images (Property 4)
+- Property: Video metadata extraction (Property 31)
 - Property: GPS coordinate format (Property 6)
 - Unit: Test fallback to file system timestamps
 
@@ -709,19 +925,36 @@ proptest! {
 - Property: Idempotence (Property 9)
 - Property: Orientation preservation (Property 10)
 
+**Video Thumbnail Extractor**:
+- Unit: Test with sample videos of each supported format
+- Property: Video thumbnail extraction at 5 seconds (Property 27)
+- Property: Video thumbnail extraction for short videos (Property 28)
+- Property: Video format support (Property 26)
+- Unit: Test FFmpeg integration and error handling
+- Unit: Test videos without video streams
+
 **AI Classifier**:
 - Unit: Test with known images and expected tags
 - Property: Classification output structure (Property 11)
 - Property: Semantic search (Property 12)
 - Unit: Test worker thread isolation
+- Unit: Test classification on video thumbnails
 
 **Database**:
 - Property: Round-trip consistency (Property 5)
 - Property: Query filtering (Property 14)
+- Property: Media type filtering (Property 30)
 - Property: Referential integrity (Property 15)
 - Property: Cleanup on deletion (Property 16)
 - Property: Path update on move (Property 17)
 - Unit: Test schema initialization
+- Unit: Test database migration for video support
+
+**Format Configuration**:
+- Property: Format configuration persistence (Property 29)
+- Property: Default format configuration (Property 32)
+- Unit: Test format validation
+- Unit: Test format selection UI
 
 **Cloud Sync**:
 - Unit: Test OAuth flow with mock server
@@ -730,30 +963,38 @@ proptest! {
 - Property: Checksum-based deduplication (Property 20)
 - Property: Sync status tracking (Property 21)
 - Unit: Test retry logic with exponential backoff
+- Unit: Test video file uploads
 
 **Error Handling**:
 - Property: Error logging structure (Property 22)
 - Property: Data preservation on crash (Property 23)
 - Unit: Test each error category with specific scenarios
+- Unit: Test video processing error scenarios
 
 **Settings Management**:
 - Property: Settings persistence round-trip (Property 24)
 - Property: Settings validation (Property 25)
 - Unit: Test default values on first run
+- Unit: Test format configuration in settings
 
 ### Integration Testing
 
 **End-to-End Flows**:
-1. Import folder → Scan → Extract metadata → Generate thumbnails → Display grid
+1. Import folder → Scan (images + videos) → Extract metadata → Generate thumbnails → Display grid
 2. Select image → Display detail view → Show metadata and tags
-3. Search by tag → Filter results → Display matches
-4. Authenticate Drive → Select images → Upload → Verify sync status
+3. Select video → Display detail view → Show video player and metadata
+4. Configure formats → Scan folder → Verify only selected formats are imported
+5. Search by tag → Filter results → Display matches (images and videos)
+6. Filter by media type → Display only images or only videos
+7. Authenticate Drive → Select media → Upload → Verify sync status
 
 **Performance Testing**:
-- Benchmark scanning 10,000 images
-- Measure thumbnail generation throughput
+- Benchmark scanning 10,000 mixed media files (images + videos)
+- Measure thumbnail generation throughput for images
+- Measure video thumbnail extraction throughput
 - Test AI classification batch processing
 - Verify search response time under load
+- Test FFmpeg performance with various video codecs
 
 ### Test Data Generation
 
@@ -786,12 +1027,19 @@ prop_compose! {
 **Edge Cases to Cover**:
 - Empty directories
 - Very large images (>100MB)
+- Very large videos (>1GB)
+- Videos shorter than 5 seconds
+- Videos with no video stream (audio only)
+- Videos with unsupported codecs
 - Images with missing EXIF data
 - Images with corrupt EXIF data
 - Unicode characters in file paths
 - Very long file paths (>260 characters on Windows)
 - Images with unusual aspect ratios
 - Images with all 8 EXIF orientation values
+- Mixed folders with both images and videos
+- Format configuration with no formats selected
+- Format configuration with invalid format strings
 
 ### Continuous Integration
 

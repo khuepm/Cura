@@ -28,7 +28,12 @@ export default function FolderImportButton() {
           <div className="flex items-center gap-2">
             <div className="animate-spin rounded-full h-3 w-3 border-2 border-primary border-t-transparent" />
             <span>
-              Scanned {scanProgress.count} images
+              Scanned {scanProgress.count} media files
+              {scanProgress.imageCount !== undefined && scanProgress.videoCount !== undefined && (
+                <span className="ml-1 text-slate-500 dark:text-slate-500">
+                  ({scanProgress.imageCount} images, {scanProgress.videoCount} videos)
+                </span>
+              )}
             </span>
           </div>
           {scanProgress.currentFile && (

@@ -1,15 +1,29 @@
 import { invoke } from '@tauri-apps/api/core';
 
 // Rust backend types
+export type MediaType = 'image' | 'video';
+
+export interface MediaFile {
+  path: string;
+  media_type: MediaType;
+}
+
 export interface ScanResult {
-  images: string[];
+  media_files: MediaFile[];
   total_count: number;
+  image_count: number;
+  video_count: number;
   errors: ScanError[];
 }
 
 export interface ScanError {
   path: string;
   message: string;
+}
+
+export interface FormatConfig {
+  image_formats: string[];
+  video_formats: string[];
 }
 
 export interface RustImageMetadata {
@@ -31,14 +45,19 @@ export interface ThumbnailPaths {
 }
 
 /**
- * Scan a folder for images
+ * Scan a folder for media files (images and videos)
  * @param folderPath - Path to the folder to scan
- * @returns ScanResult with discovered images and errors
+ * @param config - Optional format configuration
+ * @returns ScanResult with discovered media files and errors
  */
-export async function scanFolder(folderPath: string): Promise<ScanResult> {
+export async function scanFolder(
+  folderPath: string,
+  config?: FormatConfig
+): Promise<ScanResult> {
   try {
     const result = await invoke<ScanResult>('scan_folder', {
       folderPath,
+      config: config || null,
     });
     return result;
   } catch (error) {
@@ -83,6 +102,42 @@ export async function generateThumbnails(
 }
 
 /**
+ * Generate thumbnails for a video file
+ * @param videoPath - Path to the video file
+ * @returns ThumbnailPaths with paths to small and medium thumbnails
+ */
+export async function generateVideoThumbnails(
+  videoPath: string
+): Promise<ThumbnailPaths> {
+  try {
+    const result = await invoke<ThumbnailPaths>('generate_video_thumbnails', {
+      videoPath,
+    });
+    return result;
+  } catch (error) {
+    throw new Error(`Failed to generate video thumbnails: ${error}`);
+  }
+}
+
+/**
+ * Extract metadata from a video file
+ * @param videoPath - Path to the video file
+ * @returns ImageMetadata with video metadata and file system data
+ */
+export async function extractVideoMetadata(
+  videoPath: string
+): Promise<RustImageMetadata> {
+  try {
+    const result = await invoke<RustImageMetadata>('extract_video_metadata', {
+      videoPath,
+    });
+    return result;
+  } catch (error) {
+    throw new Error(`Failed to extract video metadata: ${error}`);
+  }
+}
+
+/**
  * Save tags for an image
  * @param imageId - Database ID of the image
  * @param tags - Array of [label, confidence] tuples
@@ -112,6 +167,7 @@ export async function searchImages(filters: {
   dateStart?: string;
   dateEnd?: string;
   cameraModel?: string;
+  mediaType?: string;
 }): Promise<RustImageRecord[]> {
   try {
     const result = await invoke<RustImageRecord[]>('search_images', {
@@ -120,6 +176,7 @@ export async function searchImages(filters: {
       dateStart: filters.dateStart || null,
       dateEnd: filters.dateEnd || null,
       cameraModel: filters.cameraModel || null,
+      mediaType: filters.mediaType || null,
     });
     return result;
   } catch (error) {
@@ -163,6 +220,7 @@ export async function getImageById(imageId: number): Promise<RustImageRecord | n
 export interface RustImageRecord {
   id: number;
   path: string;
+  media_type: MediaType;
   thumbnail_small: string;
   thumbnail_medium: string;
   checksum: string;
@@ -173,6 +231,8 @@ export interface RustImageRecord {
   gps_longitude: number | null;
   width: number;
   height: number;
+  duration_seconds: number | null;
+  video_codec: string | null;
   file_size: number;
   file_modified: string;
   created_at: string;

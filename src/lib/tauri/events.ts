@@ -2,7 +2,9 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 // Event payload types
 export interface ScanProgressPayload {
-  count: number;
+  image_count: number;
+  video_count: number;
+  total_count: number;
   current_file: string;
 }
 

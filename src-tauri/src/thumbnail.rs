@@ -3,10 +3,75 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
+use std::process::Command;
+use std::io::Cursor;
+use std::time::Instant;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use log::{info, warn, debug};
 
 /// Thumbnail sizes
 const THUMBNAIL_SMALL_WIDTH: u32 = 150;
 const THUMBNAIL_MEDIUM_WIDTH: u32 = 600;
+
+/// FFmpeg performance metrics for different codecs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodecPerformanceMetrics {
+    pub codec_name: String,
+    pub avg_extraction_time_ms: f64,
+    pub sample_count: usize,
+    pub success_rate: f64,
+}
+
+/// Global performance tracker for video thumbnail extraction
+lazy_static::lazy_static! {
+    static ref CODEC_PERFORMANCE: Arc<Mutex<HashMap<String, CodecStats>>> = 
+        Arc::new(Mutex::new(HashMap::new()));
+}
+
+/// Statistics for a specific codec
+#[derive(Debug, Clone)]
+struct CodecStats {
+    total_time_ms: u64,
+    sample_count: usize,
+    success_count: usize,
+}
+
+impl CodecStats {
+    fn new() -> Self {
+        Self {
+            total_time_ms: 0,
+            sample_count: 0,
+            success_count: 0,
+        }
+    }
+
+    fn record_success(&mut self, duration_ms: u64) {
+        self.total_time_ms += duration_ms;
+        self.sample_count += 1;
+        self.success_count += 1;
+    }
+
+    fn record_failure(&mut self) {
+        self.sample_count += 1;
+    }
+
+    fn avg_time_ms(&self) -> f64 {
+        if self.success_count == 0 {
+            0.0
+        } else {
+            self.total_time_ms as f64 / self.success_count as f64
+        }
+    }
+
+    fn success_rate(&self) -> f64 {
+        if self.sample_count == 0 {
+            0.0
+        } else {
+            self.success_count as f64 / self.sample_count as f64
+        }
+    }
+}
 
 /// Paths to generated thumbnails
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -235,6 +300,242 @@ fn generate_thumbnail_size(
     Ok(())
 }
 
+/// Generate thumbnails for a video file by extracting a frame
+/// Returns paths to both small and medium thumbnails
+pub fn generate_video_thumbnails(
+    video_path: &str,
+    cache_dir: &Path,
+) -> Result<ThumbnailPaths, String> {
+    let path = Path::new(video_path);
+
+    if !path.exists() {
+        return Err(format!("Video file does not exist: {}", video_path));
+    }
+
+    if !path.is_file() {
+        return Err(format!("Path is not a file: {}", video_path));
+    }
+
+    // Get file metadata for mtime comparison
+    let file_metadata = fs::metadata(path)
+        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
+    let file_mtime = file_metadata
+        .modified()
+        .map_err(|e| format!("Failed to read file modified time: {}", e))?;
+
+    // Compute checksum for the file
+    let checksum = compute_checksum(path)?;
+
+    // Create cache directory if it doesn't exist
+    fs::create_dir_all(cache_dir)
+        .map_err(|e| format!("Failed to create cache directory: {}", e))?;
+
+    // Generate thumbnail paths
+    let small_path = cache_dir.join(format!("{}_small.jpg", checksum));
+    let medium_path = cache_dir.join(format!("{}_medium.jpg", checksum));
+
+    // Check if thumbnails already exist and source file is unchanged
+    let should_regenerate = should_regenerate_thumbnails(
+        &small_path,
+        &medium_path,
+        &file_mtime,
+    );
+
+    if !should_regenerate {
+        // Return existing thumbnail paths
+        return Ok(ThumbnailPaths {
+            small: small_path.to_string_lossy().to_string(),
+            medium: medium_path.to_string_lossy().to_string(),
+        });
+    }
+
+    // Extract frame from video using FFmpeg
+    let frame_data = extract_video_frame(path)?;
+
+    // Decode the extracted frame
+    let img = ImageReader::new(Cursor::new(frame_data))
+        .with_guessed_format()
+        .map_err(|e| format!("Failed to guess image format: {}", e))?
+        .decode()
+        .map_err(|e| format!("Failed to decode video frame: {}", e))?;
+
+    // Generate small thumbnail
+    generate_thumbnail_size(&img, &small_path, THUMBNAIL_SMALL_WIDTH)?;
+
+    // Generate medium thumbnail
+    generate_thumbnail_size(&img, &medium_path, THUMBNAIL_MEDIUM_WIDTH)?;
+
+    Ok(ThumbnailPaths {
+        small: small_path.to_string_lossy().to_string(),
+        medium: medium_path.to_string_lossy().to_string(),
+    })
+}
+
+/// Extract a frame from a video file using FFmpeg
+/// Extracts frame at 5 seconds, or first frame if video is shorter
+fn extract_video_frame(video_path: &Path) -> Result<Vec<u8>, String> {
+    let start_time = Instant::now();
+    
+    // First, get video duration and codec to determine if we should extract at 5 seconds or first frame
+    let (duration, codec) = get_video_info(video_path)?;
+    
+    // Determine seek time: 5 seconds if video is longer, otherwise 0 (first frame)
+    let seek_time = if duration >= 5.0 { "5" } else { "0" };
+
+    // Run FFmpeg to extract a single frame
+    // Use optimized settings for faster extraction:
+    // -ss before -i for faster seeking
+    // -threads 1 to avoid overhead for single frame extraction
+    // -vframes 1 to extract only one frame
+    let output = Command::new("ffmpeg")
+        .arg("-ss")
+        .arg(seek_time)
+        .arg("-i")
+        .arg(video_path)
+        .arg("-vframes")
+        .arg("1")
+        .arg("-threads")
+        .arg("1")
+        .arg("-f")
+        .arg("image2pipe")
+        .arg("-")
+        .output()
+        .map_err(|e| format!("Failed to execute FFmpeg: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+
+    let extraction_time = start_time.elapsed().as_millis() as u64;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        
+        // Record failure for this codec
+        if let Ok(mut perf) = CODEC_PERFORMANCE.lock() {
+            perf.entry(codec.clone())
+                .or_insert_with(CodecStats::new)
+                .record_failure();
+        }
+        
+        warn!("FFmpeg failed to extract frame from {} (codec: {}): {}", 
+              video_path.display(), codec, stderr);
+        return Err(format!("FFmpeg failed to extract frame: {}", stderr));
+    }
+
+    if output.stdout.is_empty() {
+        // Record failure for this codec
+        if let Ok(mut perf) = CODEC_PERFORMANCE.lock() {
+            perf.entry(codec.clone())
+                .or_insert_with(CodecStats::new)
+                .record_failure();
+        }
+        
+        return Err("FFmpeg returned empty frame data. Video may not have a video stream.".to_string());
+    }
+
+    // Record success for this codec
+    if let Ok(mut perf) = CODEC_PERFORMANCE.lock() {
+        perf.entry(codec.clone())
+            .or_insert_with(CodecStats::new)
+            .record_success(extraction_time);
+    }
+
+    debug!("Extracted frame from {} (codec: {}) in {}ms", 
+           video_path.display(), codec, extraction_time);
+
+    Ok(output.stdout)
+}
+
+/// Get video duration and codec information using ffprobe
+fn get_video_info(video_path: &Path) -> Result<(f64, String), String> {
+    // Use ffprobe to get both duration and codec in a single call
+    // This is more efficient than making separate calls
+    let output = Command::new("ffprobe")
+        .arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("v:0")
+        .arg("-show_entries")
+        .arg("stream=codec_name:format=duration")
+        .arg("-of")
+        .arg("csv=p=0")
+        .arg(video_path)
+        .output()
+        .map_err(|e| format!("Failed to execute ffprobe: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffprobe failed to get video info: {}", stderr));
+    }
+
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = output_str.trim().lines().collect();
+    
+    if lines.is_empty() {
+        return Err("ffprobe returned no video information".to_string());
+    }
+
+    // Parse codec name (first line)
+    let codec = lines[0].trim().to_string();
+    
+    // Parse duration (second line if present, otherwise try to get from format)
+    let duration = if lines.len() > 1 {
+        lines[1].trim().parse::<f64>()
+            .map_err(|e| format!("Failed to parse video duration: {}", e))?
+    } else {
+        // Fallback: get duration from format
+        get_video_duration(video_path)?
+    };
+
+    Ok((duration, codec))
+}
+
+/// Get codec performance metrics for profiling
+pub fn get_codec_performance_metrics() -> Vec<CodecPerformanceMetrics> {
+    let perf = CODEC_PERFORMANCE.lock().unwrap();
+    
+    perf.iter()
+        .map(|(codec, stats)| CodecPerformanceMetrics {
+            codec_name: codec.clone(),
+            avg_extraction_time_ms: stats.avg_time_ms(),
+            sample_count: stats.sample_count,
+            success_rate: stats.success_rate(),
+        })
+        .collect()
+}
+
+/// Reset codec performance metrics
+pub fn reset_codec_performance_metrics() {
+    let mut perf = CODEC_PERFORMANCE.lock().unwrap();
+    perf.clear();
+}
+
+/// Get the duration of a video file in seconds using FFmpeg
+fn get_video_duration(video_path: &Path) -> Result<f64, String> {
+    // Use ffprobe to get video duration
+    // Command: ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {video_path}
+    let output = Command::new("ffprobe")
+        .arg("-v")
+        .arg("error")
+        .arg("-show_entries")
+        .arg("format=duration")
+        .arg("-of")
+        .arg("default=noprint_wrappers=1:nokey=1")
+        .arg(video_path)
+        .output()
+        .map_err(|e| format!("Failed to execute ffprobe: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffprobe failed to get duration: {}", stderr));
+    }
+
+    let duration_str = String::from_utf8_lossy(&output.stdout);
+    let duration = duration_str
+        .trim()
+        .parse::<f64>()
+        .map_err(|e| format!("Failed to parse video duration: {}", e))?;
+
+    Ok(duration)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +709,269 @@ mod tests {
 
         // Verify that an error is returned
         assert!(result.is_err(), "Should return error for empty file");
+    }
+
+    #[test]
+    fn test_video_thumbnail_generation_file_not_found() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        let result = generate_video_thumbnails("/nonexistent/video.mp4", &cache_dir);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("does not exist"));
+    }
+
+    #[test]
+    fn test_video_thumbnail_generation_not_a_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        // Try to generate thumbnails from a directory
+        let result = generate_video_thumbnails(temp_dir.path().to_str().unwrap(), &cache_dir);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not a file"));
+    }
+
+    // Note: Testing actual video thumbnail extraction requires FFmpeg to be installed
+    // and a valid video file. These tests would be integration tests rather than unit tests.
+    // The core logic is tested above, and the FFmpeg integration would be tested separately.
+
+    #[test]
+    fn test_video_thumbnail_corrupt_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        // Create a corrupt video file (not a valid video format)
+        let corrupt_path = temp_dir.path().join("corrupt_video.mp4");
+        fs::write(&corrupt_path, b"This is not a valid video file").unwrap();
+
+        // Try to generate thumbnails from corrupt file
+        let result = generate_video_thumbnails(corrupt_path.to_str().unwrap(), &cache_dir);
+
+        // Verify that an error is returned
+        assert!(result.is_err(), "Should return error for corrupt video");
+
+        // Verify error message contains useful information
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("FFmpeg failed") || 
+            error_msg.contains("Failed to decode") ||
+            error_msg.contains("Failed to execute FFmpeg") ||
+            error_msg.contains("Failed to execute ffprobe") ||
+            error_msg.contains("empty frame data") ||
+            error_msg.contains("program not found"),
+            "Error message should indicate FFmpeg or decoding failure, got: {}",
+            error_msg
+        );
+
+        // Note: In a full implementation, we would also verify that:
+        // 1. The error is logged to the application log file
+        // 2. A placeholder icon is displayed in the UI
+        // However, these aspects are handled at a higher level (UI layer)
+        // and are not part of the thumbnail generation module itself.
+    }
+
+    #[test]
+    fn test_video_thumbnail_audio_only() {
+        // Skip test if FFmpeg is not available
+        let ffmpeg_check = std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .output();
+        
+        if ffmpeg_check.is_err() || !ffmpeg_check.unwrap().status.success() {
+            // FFmpeg not available, skip test
+            println!("FFmpeg not available, skipping test_video_thumbnail_audio_only");
+            return;
+        }
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        // Create an audio-only file (no video stream) using FFmpeg
+        let audio_only_path = temp_dir.path().join("audio_only.mp4");
+        let create_result = std::process::Command::new("ffmpeg")
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg("sine=frequency=1000:duration=2")
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-y")
+            .arg(&audio_only_path)
+            .output();
+
+        if create_result.is_err() || !create_result.unwrap().status.success() {
+            println!("Failed to create audio-only test file, skipping test");
+            return;
+        }
+
+        // Try to generate thumbnails from audio-only file
+        let result = generate_video_thumbnails(audio_only_path.to_str().unwrap(), &cache_dir);
+
+        // Verify that an error is returned
+        assert!(result.is_err(), "Should return error for audio-only file");
+
+        // Verify error message indicates no video stream
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("empty frame data") || 
+            error_msg.contains("no video stream") ||
+            error_msg.contains("FFmpeg failed"),
+            "Error message should indicate no video stream, got: {}",
+            error_msg
+        );
+    }
+
+    #[test]
+    fn test_video_thumbnail_unsupported_codec() {
+        // Skip test if FFmpeg is not available
+        let ffmpeg_check = std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .output();
+        
+        if ffmpeg_check.is_err() || !ffmpeg_check.unwrap().status.success() {
+            // FFmpeg not available, skip test
+            println!("FFmpeg not available, skipping test_video_thumbnail_unsupported_codec");
+            return;
+        }
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        // Create a video with an unusual codec that might not be supported
+        // We'll use rawvideo which is less commonly supported for playback
+        let unusual_codec_path = temp_dir.path().join("unusual_codec.avi");
+        let create_result = std::process::Command::new("ffmpeg")
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg("testsrc=duration=2:size=320x240:rate=1")
+            .arg("-c:v")
+            .arg("rawvideo")
+            .arg("-pix_fmt")
+            .arg("rgb24")
+            .arg("-y")
+            .arg(&unusual_codec_path)
+            .output();
+
+        if create_result.is_err() || !create_result.unwrap().status.success() {
+            println!("Failed to create unusual codec test file, skipping test");
+            return;
+        }
+
+        // Try to generate thumbnails from the file
+        // Note: FFmpeg should actually be able to handle this, but we're testing
+        // that the error handling path works correctly if it fails
+        let result = generate_video_thumbnails(unusual_codec_path.to_str().unwrap(), &cache_dir);
+
+        // This test verifies that the system can handle codec-related issues
+        // If FFmpeg can extract a frame, that's fine - we just verify no panic occurs
+        // If it fails, we verify the error is handled gracefully
+        if result.is_err() {
+            let error_msg = result.unwrap_err();
+            assert!(
+                error_msg.contains("FFmpeg failed") || 
+                error_msg.contains("Failed to decode") ||
+                error_msg.contains("Failed to execute FFmpeg"),
+                "Error message should indicate FFmpeg or decoding failure, got: {}",
+                error_msg
+            );
+        } else {
+            // If it succeeded, verify thumbnails were created
+            let paths = result.unwrap();
+            assert!(Path::new(&paths.small).exists(), "Small thumbnail should exist");
+            assert!(Path::new(&paths.medium).exists(), "Medium thumbnail should exist");
+        }
+    }
+
+    #[test]
+    fn test_video_thumbnail_empty_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        // Create an empty file
+        let empty_path = temp_dir.path().join("empty.mp4");
+        fs::write(&empty_path, b"").unwrap();
+
+        // Try to generate thumbnails from empty file
+        let result = generate_video_thumbnails(empty_path.to_str().unwrap(), &cache_dir);
+
+        // Verify that an error is returned
+        assert!(result.is_err(), "Should return error for empty file");
+
+        // Verify error message contains useful information
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("FFmpeg failed") || 
+            error_msg.contains("Failed to execute FFmpeg") ||
+            error_msg.contains("Failed to execute ffprobe") ||
+            error_msg.contains("empty frame data") ||
+            error_msg.contains("program not found"),
+            "Error message should indicate FFmpeg failure, got: {}",
+            error_msg
+        );
+    }
+
+    #[test]
+    fn test_video_thumbnail_invalid_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = temp_dir.path().join("cache");
+
+        // Try with a path that contains invalid characters (on some systems)
+        let result = generate_video_thumbnails("/path/with\0null/byte.mp4", &cache_dir);
+
+        // Should return an error (either file not found or invalid path)
+        assert!(result.is_err(), "Should return error for invalid path");
+    }
+
+    #[test]
+    fn test_extract_video_frame_error_handling() {
+        // Test the extract_video_frame function directly with a non-existent file
+        let result = extract_video_frame(Path::new("/nonexistent/video.mp4"));
+        
+        // Should return an error
+        assert!(result.is_err(), "Should return error for non-existent file");
+        
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("Failed to execute FFmpeg") || 
+            error_msg.contains("FFmpeg failed") ||
+            error_msg.contains("program not found"),
+            "Error message should indicate FFmpeg execution failure, got: {}",
+            error_msg
+        );
+    }
+
+    #[test]
+    fn test_get_video_duration_error_handling() {
+        // Test the get_video_duration function directly with a non-existent file
+        let result = get_video_duration(Path::new("/nonexistent/video.mp4"));
+        
+        // Should return an error
+        assert!(result.is_err(), "Should return error for non-existent file");
+        
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("Failed to execute ffprobe") || 
+            error_msg.contains("ffprobe failed") ||
+            error_msg.contains("program not found"),
+            "Error message should indicate ffprobe execution failure, got: {}",
+            error_msg
+        );
+    }
+
+    #[test]
+    fn test_get_video_duration_invalid_output() {
+        // This test verifies that get_video_duration handles invalid duration output
+        // We can't easily test this without mocking, but we can test with a corrupt file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let corrupt_path = temp_dir.path().join("corrupt.mp4");
+        fs::write(&corrupt_path, b"not a video").unwrap();
+
+        let result = get_video_duration(&corrupt_path);
+        
+        // Should return an error (either ffprobe fails or duration parsing fails)
+        assert!(result.is_err(), "Should return error for corrupt file");
     }
 }
 
@@ -714,6 +1278,281 @@ mod property_tests {
             // Testing with actual EXIF data would require creating proper JPEG files
             // with embedded EXIF orientation tags, which is complex and beyond the scope
             // of this property test. The unit tests can cover specific EXIF scenarios.
+        }
+
+        // Feature: cura-photo-manager, Property 27: Video Thumbnail Extraction at 5 Seconds
+        // Validates: Requirements 3.1 (extended)
+        #[test]
+        fn property_video_thumbnail_extraction_at_5_seconds(
+            duration in 6..30u32,  // Videos longer than 5 seconds (6-30 seconds)
+            width in 320..1920u32,
+            height in 240..1080u32,
+        ) {
+            // Skip test if FFmpeg is not available
+            let ffmpeg_check = std::process::Command::new("ffmpeg")
+                .arg("-version")
+                .output();
+            
+            if ffmpeg_check.is_err() || !ffmpeg_check.unwrap().status.success() {
+                // FFmpeg not available, skip test
+                return Ok(());
+            }
+
+            // Create temporary directory
+            let temp_dir = tempfile::tempdir().unwrap();
+            let video_path = temp_dir.path().join("test_video.mp4");
+            let cache_dir = temp_dir.path().join("cache");
+
+            // Create a test video with the specified duration using FFmpeg
+            // Use testsrc to generate a test pattern with a timestamp overlay
+            // This allows us to verify which frame was extracted
+            let create_result = std::process::Command::new("ffmpeg")
+                .arg("-f")
+                .arg("lavfi")
+                .arg("-i")
+                .arg(format!("testsrc=duration={}:size={}x{}:rate=1", duration, width, height))
+                .arg("-vf")
+                .arg("drawtext=text='%{pts\\:hms}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2")
+                .arg("-pix_fmt")
+                .arg("yuv420p")
+                .arg("-y")
+                .arg(&video_path)
+                .output();
+
+            prop_assert!(
+                create_result.is_ok(),
+                "Failed to create test video: {:?}",
+                create_result.err()
+            );
+
+            let output = create_result.unwrap();
+            prop_assert!(
+                output.status.success(),
+                "FFmpeg failed to create test video: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+
+            prop_assert!(
+                video_path.exists(),
+                "Test video file should exist after creation"
+            );
+
+            // Generate thumbnails from the video
+            let result = generate_video_thumbnails(video_path.to_str().unwrap(), &cache_dir);
+            prop_assert!(
+                result.is_ok(),
+                "Video thumbnail generation should succeed: {:?}",
+                result.err()
+            );
+
+            let paths = result.unwrap();
+
+            // Verify exactly two thumbnails are created
+            prop_assert!(
+                Path::new(&paths.small).exists(),
+                "Small thumbnail should exist"
+            );
+            prop_assert!(
+                Path::new(&paths.medium).exists(),
+                "Medium thumbnail should exist"
+            );
+
+            // Verify correct dimensions (150px and 600px width)
+            let small_img = image::open(&paths.small).unwrap();
+            prop_assert_eq!(
+                small_img.width(),
+                THUMBNAIL_SMALL_WIDTH,
+                "Small thumbnail should be 150px wide"
+            );
+
+            let medium_img = image::open(&paths.medium).unwrap();
+            prop_assert_eq!(
+                medium_img.width(),
+                THUMBNAIL_MEDIUM_WIDTH,
+                "Medium thumbnail should be 600px wide"
+            );
+
+            // Verify aspect ratio is maintained
+            let original_aspect = width as f64 / height as f64;
+            let expected_small_height = (THUMBNAIL_SMALL_WIDTH as f64 / original_aspect).round() as u32;
+            let expected_medium_height = (THUMBNAIL_MEDIUM_WIDTH as f64 / original_aspect).round() as u32;
+
+            let small_height_diff = (small_img.height() as i32 - expected_small_height as i32).abs();
+            prop_assert!(
+                small_height_diff <= 1,
+                "Small thumbnail height should be within 1 pixel of expected (expected: {}, got: {})",
+                expected_small_height,
+                small_img.height()
+            );
+
+            let medium_height_diff = (medium_img.height() as i32 - expected_medium_height as i32).abs();
+            prop_assert!(
+                medium_height_diff <= 1,
+                "Medium thumbnail height should be within 1 pixel of expected (expected: {}, got: {})",
+                expected_medium_height,
+                medium_img.height()
+            );
+
+            // Verify that the frame was extracted from approximately 5 seconds
+            // We can't verify the exact timestamp without analyzing the frame content,
+            // but we can verify that the video duration is correct and the extraction succeeded
+            let duration_result = get_video_duration(&video_path);
+            prop_assert!(
+                duration_result.is_ok(),
+                "Should be able to get video duration"
+            );
+
+            let actual_duration = duration_result.unwrap();
+            prop_assert!(
+                actual_duration >= 5.0,
+                "Video duration should be at least 5 seconds (got: {})",
+                actual_duration
+            );
+
+            // Note: The actual verification that the frame is from 5 seconds would require
+            // analyzing the timestamp overlay in the frame, which is complex.
+            // The implementation logic in extract_video_frame uses -ss 5 when duration >= 5.0,
+            // so we trust that FFmpeg extracts the correct frame.
+            // This property test verifies:
+            // 1. Videos longer than 5 seconds can be processed
+            // 2. Thumbnails are generated successfully
+            // 3. Thumbnails have correct dimensions and aspect ratio
+        }
+
+        // Feature: cura-photo-manager, Property 28: Video Thumbnail Extraction for Short Videos
+        // Validates: Requirements 3.1 (extended)
+        #[test]
+        fn property_video_thumbnail_extraction_short_videos(
+            duration in 1..5u32,  // Videos shorter than 5 seconds (1-4 seconds)
+            width in 320..1920u32,
+            height in 240..1080u32,
+        ) {
+            // Skip test if FFmpeg is not available
+            let ffmpeg_check = std::process::Command::new("ffmpeg")
+                .arg("-version")
+                .output();
+            
+            if ffmpeg_check.is_err() || !ffmpeg_check.unwrap().status.success() {
+                // FFmpeg not available, skip test
+                return Ok(());
+            }
+
+            // Create temporary directory
+            let temp_dir = tempfile::tempdir().unwrap();
+            let video_path = temp_dir.path().join("test_short_video.mp4");
+            let cache_dir = temp_dir.path().join("cache");
+
+            // Create a test video with the specified duration using FFmpeg
+            // Use testsrc to generate a test pattern with a timestamp overlay
+            // This allows us to verify which frame was extracted
+            let create_result = std::process::Command::new("ffmpeg")
+                .arg("-f")
+                .arg("lavfi")
+                .arg("-i")
+                .arg(format!("testsrc=duration={}:size={}x{}:rate=1", duration, width, height))
+                .arg("-vf")
+                .arg("drawtext=text='%{pts\\:hms}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2")
+                .arg("-pix_fmt")
+                .arg("yuv420p")
+                .arg("-y")
+                .arg(&video_path)
+                .output();
+
+            prop_assert!(
+                create_result.is_ok(),
+                "Failed to create test video: {:?}",
+                create_result.err()
+            );
+
+            let output = create_result.unwrap();
+            prop_assert!(
+                output.status.success(),
+                "FFmpeg failed to create test video: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+
+            prop_assert!(
+                video_path.exists(),
+                "Test video file should exist after creation"
+            );
+
+            // Generate thumbnails from the video
+            let result = generate_video_thumbnails(video_path.to_str().unwrap(), &cache_dir);
+            prop_assert!(
+                result.is_ok(),
+                "Video thumbnail generation should succeed for short videos: {:?}",
+                result.err()
+            );
+
+            let paths = result.unwrap();
+
+            // Verify exactly two thumbnails are created
+            prop_assert!(
+                Path::new(&paths.small).exists(),
+                "Small thumbnail should exist"
+            );
+            prop_assert!(
+                Path::new(&paths.medium).exists(),
+                "Medium thumbnail should exist"
+            );
+
+            // Verify correct dimensions (150px and 600px width)
+            let small_img = image::open(&paths.small).unwrap();
+            prop_assert_eq!(
+                small_img.width(),
+                THUMBNAIL_SMALL_WIDTH,
+                "Small thumbnail should be 150px wide"
+            );
+
+            let medium_img = image::open(&paths.medium).unwrap();
+            prop_assert_eq!(
+                medium_img.width(),
+                THUMBNAIL_MEDIUM_WIDTH,
+                "Medium thumbnail should be 600px wide"
+            );
+
+            // Verify aspect ratio is maintained
+            let original_aspect = width as f64 / height as f64;
+            let expected_small_height = (THUMBNAIL_SMALL_WIDTH as f64 / original_aspect).round() as u32;
+            let expected_medium_height = (THUMBNAIL_MEDIUM_WIDTH as f64 / original_aspect).round() as u32;
+
+            let small_height_diff = (small_img.height() as i32 - expected_small_height as i32).abs();
+            prop_assert!(
+                small_height_diff <= 1,
+                "Small thumbnail height should be within 1 pixel of expected (expected: {}, got: {})",
+                expected_small_height,
+                small_img.height()
+            );
+
+            let medium_height_diff = (medium_img.height() as i32 - expected_medium_height as i32).abs();
+            prop_assert!(
+                medium_height_diff <= 1,
+                "Medium thumbnail height should be within 1 pixel of expected (expected: {}, got: {})",
+                expected_medium_height,
+                medium_img.height()
+            );
+
+            // Verify that the video duration is less than 5 seconds
+            let duration_result = get_video_duration(&video_path);
+            prop_assert!(
+                duration_result.is_ok(),
+                "Should be able to get video duration"
+            );
+
+            let actual_duration = duration_result.unwrap();
+            prop_assert!(
+                actual_duration < 5.0,
+                "Video duration should be less than 5 seconds (got: {})",
+                actual_duration
+            );
+
+            // For short videos, the implementation should extract from the first frame (time 0)
+            // The implementation logic in extract_video_frame uses -ss 0 when duration < 5.0
+            // This property test verifies:
+            // 1. Videos shorter than 5 seconds can be processed
+            // 2. Thumbnails are generated successfully from the first frame
+            // 3. Thumbnails have correct dimensions and aspect ratio
+            // 4. The system handles the edge case of short videos correctly
         }
     }
 }

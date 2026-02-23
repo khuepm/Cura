@@ -3,11 +3,11 @@
  * Runs Transformers.js models in a separate thread to avoid blocking the UI
  */
 
-import { pipeline, Pipeline } from '@xenova/transformers';
+import { pipeline } from '@xenova/transformers';
 import type { ClassificationRequest, ClassificationResult } from '../types';
 
 // Worker state
-let model: Pipeline | null = null;
+let model: any = null;
 let modelType: 'clip' | 'mobilenet' | null = null;
 let isInitializing = false;
 let processingQueue: ClassificationRequest[] = [];

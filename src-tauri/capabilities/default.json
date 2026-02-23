@@ -6,6 +6,15 @@
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-exists",
+    "fs:allow-read-dir",
+    "fs:scope-app-index",
+    "fs:scope-appdata",
+    "fs:scope-home"
   ]
 }

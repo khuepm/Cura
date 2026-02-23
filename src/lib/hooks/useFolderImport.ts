@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useAppDispatch, useAppState } from '../store/AppContext';
 import { useTauriCommands } from './useTauriCommands';
 import { listenToScanProgress } from '../tauri/events';
@@ -22,7 +23,9 @@ export function useFolderImport() {
         dispatch({
           type: 'SET_SCAN_PROGRESS',
           payload: {
-            count: progress.count,
+            count: progress.total_count,
+            imageCount: progress.image_count,
+            videoCount: progress.video_count,
             currentFile: progress.current_file,
           },
         });
@@ -40,14 +43,16 @@ export function useFolderImport() {
 
   /**
    * Open folder selection dialog
-   * For now, we'll use a simple prompt. In production, this would use Tauri's dialog plugin.
    */
   const selectFolder = useCallback(async (): Promise<string | null> => {
     try {
-      // TODO: Replace with Tauri dialog plugin when npm package is installed
-      // For now, use a simple prompt for testing
-      const folderPath = prompt('Enter folder path to scan:');
-      return folderPath;
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: 'Select folder to import',
+      });
+      
+      return selected as string | null;
     } catch (error) {
       setError('Failed to open folder selection dialog');
       console.error('Folder selection error:', error);
@@ -85,13 +90,15 @@ export function useFolderImport() {
         const batchSize = 10;
         const images: ImageRecord[] = [];
 
-        for (let i = 0; i < scanResult.images.length; i += batchSize) {
-          const batch = scanResult.images.slice(i, i + batchSize);
+        for (let i = 0; i < scanResult.media_files.length; i += batchSize) {
+          const batch = scanResult.media_files.slice(i, i + batchSize);
 
           // Process batch in parallel
           const processedBatch = await Promise.all(
-            batch.map((imagePath, index) =>
-              processImage(imagePath, i + index + 1)
+            batch.map((mediaFile, index) =>
+              processImage(mediaFile.path, i + index + 1, mediaFile.media_type).then(img => 
+                img ? { ...img, mediaType: mediaFile.media_type } : null
+              )
             )
           );
 
@@ -101,6 +108,7 @@ export function useFolderImport() {
               img !== null &&
               img.id !== undefined &&
               img.path !== undefined &&
+              img.mediaType !== undefined &&
               img.thumbnailSmall !== undefined &&
               img.thumbnailMedium !== undefined &&
               img.metadata !== undefined
@@ -118,7 +126,7 @@ export function useFolderImport() {
             type: 'SET_SCAN_PROGRESS',
             payload: {
               count: i + batch.length,
-              currentFile: batch[batch.length - 1] || '',
+              currentFile: batch[batch.length - 1]?.path || '',
             },
           });
         }
@@ -127,7 +135,7 @@ export function useFolderImport() {
         dispatch({ type: 'SET_IS_SCANNING', payload: false });
 
         console.log(
-          `Import complete: ${images.length} images processed successfully`
+          `Import complete: ${images.length} media files processed successfully (${scanResult.image_count} images, ${scanResult.video_count} videos)`
         );
       } catch (error) {
         dispatch({ type: 'SET_IS_SCANNING', payload: false });

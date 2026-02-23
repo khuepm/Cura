@@ -1,25 +1,33 @@
 mod auth;
 mod database;
+mod ffmpeg;
 mod logging;
 mod metadata;
+mod migrations;
 mod performance;
 mod scanner;
 mod settings;
 mod sync;
-mod thumbnail;
+pub mod thumbnail; // Made public for performance tests
 mod updater;
 
 use tauri::Manager;
 use tauri::Emitter;
 
-/// Tauri command to scan a folder for images
+/// Tauri command to scan a folder for media files (images and videos)
 #[tauri::command]
-fn scan_folder(folder_path: String) -> Result<scanner::ScanResult, String> {
+fn scan_folder(folder_path: String, config: Option<settings::FormatConfig>) -> Result<scanner::ScanResult, String> {
     logging::log_info("scanner", &format!("Starting scan of folder: {}", folder_path));
     
-    match scanner::scan_folder(&folder_path) {
+    match scanner::scan_folder(&folder_path, config) {
         Ok(result) => {
-            logging::log_info("scanner", &format!("Scan completed: {} images found, {} errors", result.total_count, result.errors.len()));
+            logging::log_info("scanner", &format!(
+                "Scan completed: {} total media files found ({} images, {} videos), {} errors", 
+                result.total_count, 
+                result.image_count, 
+                result.video_count, 
+                result.errors.len()
+            ));
             
             // Log any errors encountered during scanning
             for error in &result.errors {
@@ -49,6 +57,24 @@ fn extract_metadata(image_path: String) -> Result<metadata::ImageMetadata, Strin
         Err(e) => {
             let io_error = std::io::Error::new(std::io::ErrorKind::Other, e.clone());
             logging::log_error("metadata", &format!("Failed to extract metadata from: {}", image_path), &io_error);
+            Err(logging::user_friendly_error(&io_error))
+        }
+    }
+}
+
+/// Tauri command to extract metadata from a video file
+#[tauri::command]
+fn extract_video_metadata(video_path: String) -> Result<metadata::ImageMetadata, String> {
+    logging::log_debug("metadata", &format!("Extracting video metadata from: {}", video_path));
+    
+    match metadata::extract_video_metadata(&video_path) {
+        Ok(metadata) => {
+            logging::log_debug("metadata", &format!("Video metadata extracted successfully for: {}", video_path));
+            Ok(metadata)
+        }
+        Err(e) => {
+            let io_error = std::io::Error::new(std::io::ErrorKind::Other, e.clone());
+            logging::log_error("metadata", &format!("Failed to extract video metadata from: {}", video_path), &io_error);
             Err(logging::user_friendly_error(&io_error))
         }
     }
@@ -86,6 +112,52 @@ fn generate_thumbnails(
     }
 }
 
+/// Tauri command to generate thumbnails for a video file
+#[tauri::command]
+fn generate_video_thumbnails(
+    video_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<thumbnail::ThumbnailPaths, String> {
+    logging::log_debug("thumbnail", &format!("Generating video thumbnails for: {}", video_path));
+    
+    // Get the app data directory for thumbnail cache
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| {
+            logging::log_error("thumbnail", "Failed to get app data directory", &e);
+            logging::user_friendly_error(&e)
+        })?;
+    
+    let cache_dir = app_data_dir.join("thumbnails");
+    
+    match thumbnail::generate_video_thumbnails(&video_path, &cache_dir) {
+        Ok(paths) => {
+            logging::log_debug("thumbnail", &format!("Video thumbnails generated successfully for: {}", video_path));
+            Ok(paths)
+        }
+        Err(e) => {
+            let io_error = std::io::Error::new(std::io::ErrorKind::Other, e.clone());
+            logging::log_error("thumbnail", &format!("Failed to generate video thumbnails for: {}", video_path), &io_error);
+            Err(logging::user_friendly_error(&io_error))
+        }
+    }
+}
+
+/// Tauri command to get codec performance metrics
+#[tauri::command]
+fn get_codec_performance_metrics() -> Vec<thumbnail::CodecPerformanceMetrics> {
+    logging::log_debug("thumbnail", "Getting codec performance metrics");
+    thumbnail::get_codec_performance_metrics()
+}
+
+/// Tauri command to reset codec performance metrics
+#[tauri::command]
+fn reset_codec_performance_metrics() {
+    logging::log_debug("thumbnail", "Resetting codec performance metrics");
+    thumbnail::reset_codec_performance_metrics();
+}
+
 /// Tauri command to save tags for an image
 #[tauri::command]
 fn save_tags(
@@ -117,6 +189,7 @@ fn search_images(
     date_start: Option<String>,
     date_end: Option<String>,
     camera_model: Option<String>,
+    media_type: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<Vec<database::ImageRecord>, String> {
     logging::log_debug("search", "Executing image search");
@@ -142,12 +215,26 @@ fn search_images(
         None
     };
     
+    // Parse media type if provided
+    let parsed_media_type = media_type.and_then(|mt| {
+        match mt.to_lowercase().as_str() {
+            "image" => Some(database::MediaType::Image),
+            "video" => Some(database::MediaType::Video),
+            "all" | "" => None, // "all" means no filter
+            _ => {
+                logging::log_warning("search", &format!("Invalid media type: {}", mt));
+                None
+            }
+        }
+    });
+    
     // Build filter
     let filter = database::ImageFilter {
         date_range,
         location: None, // Location filtering not implemented yet
         tags,
         camera_model,
+        media_type: parsed_media_type,
     };
     
     // Query database
@@ -459,8 +546,12 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .invoke_handler(tauri::generate_handler![
       scan_folder, 
-      extract_metadata, 
-      generate_thumbnails, 
+      extract_metadata,
+      extract_video_metadata,
+      generate_thumbnails,
+      generate_video_thumbnails,
+      get_codec_performance_metrics,
+      reset_codec_performance_metrics,
       save_tags,
       search_images,
       get_image_tags,
@@ -473,6 +564,11 @@ pub fn run() {
       sync_to_drive,
       get_settings,
       save_settings,
+      settings::get_format_config,
+      settings::set_format_config,
+      settings::get_default_formats,
+      ffmpeg::check_ffmpeg,
+      ffmpeg::get_ffmpeg_install_instructions,
       updater::check_for_updates,
       updater::install_update
     ])
@@ -551,6 +647,21 @@ pub fn run() {
       // Verify startup time meets requirement (< 3000ms)
       if startup_time > 3000 {
         logging::log_warning("app", &format!("Startup time {}ms exceeds target of 3000ms", startup_time));
+      }
+
+      // Check FFmpeg availability on startup
+      let ffmpeg_status = ffmpeg::check_ffmpeg_availability();
+      if ffmpeg_status.available {
+        if let Some(version) = &ffmpeg_status.version {
+          logging::log_info("ffmpeg", &format!("FFmpeg is available: {}", version));
+        } else {
+          logging::log_info("ffmpeg", "FFmpeg is available");
+        }
+      } else {
+        logging::log_warning("ffmpeg", "FFmpeg is not available - video thumbnail generation will be disabled");
+        if let Some(error) = &ffmpeg_status.error {
+          logging::log_warning("ffmpeg", error);
+        }
       }
 
       // Check for updates on startup (async, non-blocking)

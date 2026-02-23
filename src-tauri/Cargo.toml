@@ -39,6 +39,10 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+lazy_static = "1.4"
+
+# Video processing
+ffmpeg-sidecar = "2.0"
 
 # OAuth and cloud sync
 oauth2 = "4.4"
@@ -53,3 +57,8 @@ urlencoding = "2.1"
 proptest = "1.5"
 tempfile = "3.13"
 uuid = { version = "1.11", features = ["v4"] }
+criterion = "0.5"
+
+[[bench]]
+name = "video_performance"
+harness = false

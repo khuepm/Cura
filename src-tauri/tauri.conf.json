@@ -100,13 +100,6 @@
     }
   },
   "plugins": {
-    "dialog": {
-      "all": true,
-      "open": true
-    },
-    "fs": {
-      "scope": ["$APPDATA/**", "$HOME/**"]
-    },
     "updater": {
       "active": true,
       "endpoints": [
