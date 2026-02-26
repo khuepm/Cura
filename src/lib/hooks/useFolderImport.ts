@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { useAppDispatch, useAppState } from '../store/AppContext';
 import { useTauriCommands } from './useTauriCommands';
 import { listenToScanProgress } from '../tauri/events';
@@ -11,10 +12,10 @@ import type { ImageRecord } from '../types';
 export function useFolderImport() {
   const dispatch = useAppDispatch();
   const { scanning } = useAppState();
-  const { scan, processImage } = useTauriCommands();
+  const { scan } = useTauriCommands();
   const [error, setError] = useState<string | null>(null);
 
-  // Listen to scan progress events
+  // Listen to scan progress events (emitted during scanFolder Tauri call)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
 
@@ -51,101 +52,84 @@ export function useFolderImport() {
         multiple: false,
         title: 'Select folder to import',
       });
-      
+
       return selected as string | null;
-    } catch (error) {
+    } catch (err) {
       setError('Failed to open folder selection dialog');
-      console.error('Folder selection error:', error);
+      console.error('Folder selection error:', err);
       return null;
     }
   }, []);
 
   /**
-   * Import images from a folder
+   * Import images from a folder.
+   *
+   * Strategy: skip ALL per-file Tauri processing. After the folder scan
+   * (which is near-instant), every media file is added to state immediately
+   * as a lightweight stub:
+   *   - Images: thumbnailSmall = convertFileSrc(path) — the browser loads the
+   *     original file directly via Tauri's asset protocol, no Rust processing.
+   *   - Videos: thumbnailSmall = '' — PhotoGrid shows the movie icon instead.
+   *
+   * This makes the grid appear in milliseconds regardless of folder size.
    */
   const importFolder = useCallback(
     async (folderPath?: string): Promise<void> => {
       try {
         setError(null);
 
-        // If no folder path provided, open selection dialog
+        // Open folder selection dialog if no path provided
         const selectedPath = folderPath || (await selectFolder());
         if (!selectedPath) {
           return;
         }
 
-        // Scan the folder
+        // Scan the folder — fast, returns list of file paths + media types
         const scanResult = await scan(selectedPath);
         if (!scanResult) {
           setError('Failed to scan folder');
           return;
         }
 
-        // Check for errors
         if (scanResult.errors.length > 0) {
           console.warn('Scan completed with errors:', scanResult.errors);
         }
 
-        // Process images in batches
-        const batchSize = 10;
-        const images: ImageRecord[] = [];
+        // Build record stubs for all files — zero per-file Tauri calls
+        const stubs: ImageRecord[] = scanResult.media_files.map((mediaFile, index) => ({
+          id: index + 1,
+          path: mediaFile.path,
+          mediaType: mediaFile.media_type,
+          // Images: use convertFileSrc so the browser loads from disk directly
+          // Videos: empty string → PhotoGrid renders the movie icon placeholder
+          thumbnailSmall: mediaFile.media_type === 'video' ? '' : convertFileSrc(mediaFile.path),
+          thumbnailMedium: mediaFile.media_type === 'video' ? '' : convertFileSrc(mediaFile.path),
+          checksum: '',
+          metadata: {
+            dimensions: { width: 0, height: 0 },
+            fileSize: 0,
+            fileModified: new Date(),
+          },
+          tags: [],
+          syncStatus: 'pending',
+        }));
 
-        for (let i = 0; i < scanResult.media_files.length; i += batchSize) {
-          const batch = scanResult.media_files.slice(i, i + batchSize);
-
-          // Process batch in parallel
-          const processedBatch = await Promise.all(
-            batch.map((mediaFile, index) =>
-              processImage(mediaFile.path, i + index + 1, mediaFile.media_type).then(img => 
-                img ? { ...img, mediaType: mediaFile.media_type } : null
-              )
-            )
-          );
-
-          // Filter out failed images and add to results
-          const validImages = processedBatch.filter(
-            (img): img is ImageRecord =>
-              img !== null &&
-              img.id !== undefined &&
-              img.path !== undefined &&
-              img.mediaType !== undefined &&
-              img.thumbnailSmall !== undefined &&
-              img.thumbnailMedium !== undefined &&
-              img.metadata !== undefined
-          ) as ImageRecord[];
-
-          images.push(...validImages);
-
-          // Update state with processed images
-          if (validImages.length > 0) {
-            dispatch({ type: 'ADD_IMAGES', payload: validImages });
-          }
-
-          // Update progress
-          dispatch({
-            type: 'SET_SCAN_PROGRESS',
-            payload: {
-              count: i + batch.length,
-              currentFile: batch[batch.length - 1]?.path || '',
-            },
-          });
-        }
-
-        // Complete scanning
+        // Dispatch all records in one shot — grid renders immediately
+        dispatch({ type: 'ADD_IMAGES', payload: stubs });
         dispatch({ type: 'SET_IS_SCANNING', payload: false });
 
         console.log(
-          `Import complete: ${images.length} media files processed successfully (${scanResult.image_count} images, ${scanResult.video_count} videos)`
+          `Import complete: ${stubs.length} files added ` +
+          `(${scanResult.image_count} images, ${scanResult.video_count} videos)`
         );
-      } catch (error) {
+      } catch (err) {
         dispatch({ type: 'SET_IS_SCANNING', payload: false });
-        const errorMessage =
-          error instanceof Error ? error.message : 'Failed to import folder';
+        const errorMessage = err instanceof Error ? err.message : 'Failed to import folder';
         setError(errorMessage);
-        console.error('Import error:', error);
+        console.error('Import error:', err);
       }
     },
-    [selectFolder, scan, processImage, dispatch]
+    [selectFolder, scan, dispatch]
   );
 
   /**

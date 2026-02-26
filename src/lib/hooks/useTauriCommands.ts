@@ -145,7 +145,9 @@ export function useTauriCommands() {
 
   /**
    * Process a single media file: extract metadata and generate thumbnails
-   * Handles both images and videos
+   * Handles both images and videos.
+   * Videos are imported as lightweight stubs (no thumbnail extraction) to
+   * avoid slow FFmpeg/FFprobe calls — the UI shows a video icon instead.
    */
   const processImage = useCallback(
     async (
@@ -154,11 +156,28 @@ export function useTauriCommands() {
       mediaType: MediaType = 'image'
     ): Promise<Partial<ImageRecord> | null> => {
       try {
-        // Extract metadata and generate thumbnails in parallel
-        // Use appropriate functions based on media type
+        // Skip heavy processing for videos — return a stub immediately
+        if (mediaType === 'video') {
+          return {
+            id: mediaId,
+            path: mediaPath,
+            mediaType: 'video',
+            thumbnailSmall: '',
+            thumbnailMedium: '',
+            metadata: {
+              dimensions: { width: 0, height: 0 },
+              fileSize: 0,
+              fileModified: new Date(),
+            },
+            tags: [],
+            syncStatus: 'pending',
+          };
+        }
+
+        // For images: extract metadata and generate thumbnails in parallel
         const [metadata, thumbnails] = await Promise.all([
-          mediaType === 'video' ? getVideoMetadata(mediaPath) : getMetadata(mediaPath),
-          mediaType === 'video' ? getVideoThumbnails(mediaPath) : getThumbnails(mediaPath),
+          getMetadata(mediaPath),
+          getThumbnails(mediaPath),
         ]);
 
         if (!metadata || !thumbnails) {
@@ -181,7 +200,7 @@ export function useTauriCommands() {
         return null;
       }
     },
-    [getMetadata, getVideoMetadata, getThumbnails, getVideoThumbnails]
+    [getMetadata, getThumbnails]
   );
 
   return {

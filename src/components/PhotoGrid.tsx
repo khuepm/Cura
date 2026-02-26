@@ -58,22 +58,32 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
 
   const actualIsLoading = isLoading || scanning.isScanning;
 
+  // Track container size with ResizeObserver so dimensions update whenever
+  // the grid container mounts (e.g., after scanning finishes and the skeleton
+  // is replaced by the actual grid).
   React.useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const updateDimensions = () => {
-      if (containerRef.current) {
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
         setDimensions({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
         });
       }
-    };
+    });
 
-    updateDimensions();
-    window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
-  }, []);
+    observer.observe(el);
+    // Fire immediately with current size
+    setDimensions({ width: el.offsetWidth, height: el.offsetHeight });
+
+    return () => observer.disconnect();
+    // Re-run when actualIsLoading changes: the container ref might be null
+    // while the skeleton is shown, so we need a fresh effect once it appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actualIsLoading]);
 
   const columnCount = Math.max(1, Math.floor(dimensions.width / (COLUMN_WIDTH + GAP)));
   const rowCount = Math.ceil(photos.length / columnCount);
@@ -107,12 +117,21 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
           onClick={() => handlePhotoClick(photo.id)}
           className="relative w-full h-full bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all group"
         >
-          <img
-            src={photo.thumbnailSmall}
-            alt={isVideo ? `Video ${photo.id}` : `Photo ${photo.id}`}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-          />
+          {isVideo && !photo.thumbnailSmall ? (
+            /* Video placeholder: no thumbnail extracted — show icon */
+            <div className="w-full h-full flex items-center justify-center bg-slate-800 dark:bg-slate-900">
+              <span className="material-symbols-outlined text-slate-400 dark:text-slate-500" style={{ fontSize: '72px' }}>
+                movie
+              </span>
+            </div>
+          ) : (
+            <img
+              src={photo.thumbnailSmall}
+              alt={isVideo ? `Video ${photo.id}` : `Photo ${photo.id}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+          )}
           {/* Video indicator overlay */}
           {isVideo && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -171,8 +190,8 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
           <button
             onClick={() => handleMediaTypeFilterChange('all')}
             className={`px-3 py-1 text-sm rounded-md transition-colors ${images.mediaTypeFilter === 'all'
-                ? 'bg-primary text-white'
-                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              ? 'bg-primary text-white'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
               }`}
           >
             All ({allPhotos.length})
@@ -180,8 +199,8 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
           <button
             onClick={() => handleMediaTypeFilterChange('image')}
             className={`px-3 py-1 text-sm rounded-md transition-colors ${images.mediaTypeFilter === 'image'
-                ? 'bg-primary text-white'
-                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              ? 'bg-primary text-white'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
               }`}
           >
             Images ({allPhotos.filter(p => p.mediaType === 'image').length})
@@ -189,8 +208,8 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
           <button
             onClick={() => handleMediaTypeFilterChange('video')}
             className={`px-3 py-1 text-sm rounded-md transition-colors ${images.mediaTypeFilter === 'video'
-                ? 'bg-primary text-white'
-                : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+              ? 'bg-primary text-white'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
               }`}
           >
             Videos ({allPhotos.filter(p => p.mediaType === 'video').length})
@@ -199,7 +218,7 @@ export default function PhotoGrid({ photos: propPhotos, isLoading = false }: Pho
       </div>
 
       {/* Grid */}
-      <div ref={containerRef} className="flex-1">
+      <div ref={containerRef} className="flex-1" style={{ minHeight: 0 }}>
         {photos.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <span className="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">
